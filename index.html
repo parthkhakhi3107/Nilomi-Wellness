@@ -151,12 +151,16 @@ body{padding-bottom:110px}
 .cc-empty{pointer-events:none}.cc-full{background:var(--green);color:#0f1a14;font-weight:500}.cc-partial{background:var(--amber-dim);color:var(--amber-soft)}.cc-none{background:var(--surface);color:var(--faint)}.cc-future{color:var(--faint);pointer-events:none}.cc-today{outline:2px solid var(--green);outline-offset:1px}.cc-selected{outline:2px solid var(--blue);outline-offset:1px}
 .day-detail{background:var(--card);border:.5px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px;display:none}
 .day-detail.open{display:block}
-.day-detail-title{font-size:13px;font-weight:500;color:var(--text);margin-bottom:10px}
-.dd-item{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:.5px solid var(--border);font-size:12px}
+.day-detail-title{font-size:13px;font-weight:500;color:var(--text);margin-bottom:4px}
+.day-detail-hint{font-size:10px;color:var(--muted);margin-bottom:10px;opacity:.85}
+.dd-item{display:flex;align-items:center;gap:8px;padding:7px 6px;border-bottom:.5px solid var(--border);font-size:12px;border-radius:6px;transition:background .12s}
 .dd-item:last-child{border-bottom:none}
+.dd-clickable{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.dd-clickable:hover{background:var(--surface)}
+.dd-clickable:active{transform:scale(.98)}
 .dd-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 .dd-done{background:var(--green)}.dd-miss{background:var(--rose)}
-.dd-name{flex:1;color:var(--text)}.dd-status{font-size:10px;color:var(--muted)}
+.dd-name{flex:1;color:var(--text)}.dd-status{font-size:10px;color:var(--muted);white-space:nowrap}
 .compliance-wrap{background:var(--card);border:.5px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px}
 .compliance-title{font-size:13px;font-weight:500;color:var(--text);margin-bottom:10px}
 .comp-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
@@ -418,7 +422,7 @@ body.light .tabbar{background:rgba(245,247,245,.93)}
   <div class="settings-card">
     <div class="settings-title">Reminder times</div>
     <div class="time-row"><span class="time-label">☀ Morning</span><input class="time-input" type="time" id="timeMorning" value="08:30"></div>
-    <div class="time-row"><span class="time-label">🌤 Afternoon</span><input class="time-input" type="time" id="timeAfternoon" value="13:00"></div>
+    <div class="time-row"><span class="time-label">🌤 Afternoon</span><input class="time-input" type="time" id="timeAfternoon" value="15:30"></div>
     <div class="time-row"><span class="time-label">🌙 Bedtime</span><input class="time-input" type="time" id="timeNight" value="22:00"></div>
     <button class="save-btn" onclick="saveTimes()">Save &amp; reschedule</button>
   </div>
@@ -452,7 +456,7 @@ body.light .tabbar{background:rgba(245,247,245,.93)}
   <div class="settings-card">
     <div class="settings-title">App</div>
     <div class="time-row"><span class="time-label">Theme</span><button class="icon-btn" style="margin:0" onclick="toggleTheme()">Toggle dark / light</button></div>
-    <div style="margin-top:12px;font-size:11px;color:var(--muted);line-height:1.7">Nilomi v4.1 — customizable, cloud-synced, with rich reporting.<br>Long-press any card to add a note.<br>Your data auto-syncs in the background across devices.</div>
+    <div style="margin-top:12px;font-size:11px;color:var(--muted);line-height:1.7">Nilomi v4.2 — day rolls over at 4am so late-night logging still counts.<br>Tap any past day in History to edit a missed log.<br>Long-press any card to add a note. Your data auto-syncs across devices.</div>
     <button class="btn-ghost" style="width:100%;margin-top:10px" onclick="wipeLocal()">Reset local data</button>
   </div>
 
@@ -612,15 +616,27 @@ body.light .tabbar{background:rgba(245,247,245,.93)}
 
 <script>
 /* ============================================================
- *  NILOMI v4 — Customizable medicine & skincare tracker
+ *  NILOMI v4.2 — Customizable medicine & skincare tracker
  *  - User-editable medicines, courses, alternating groups
  *  - Google Drive sync (drive.file scope, last-write-wins)
+ *  - 4am day rollover (late-night logs count for previous day)
+ *  - Editable history (tap any past day to fix missed logs)
  * ============================================================ */
 
 const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DAYS_SHORT=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-const today=new Date();
-const todayStr=today.toISOString().slice(0,10);
+
+/* Day reset at 4am local time — meds logged between midnight and 4am still
+   count toward the *previous* day. Shift "now" back by DAY_RESET_HOUR hours,
+   then use the shifted date's Y-M-D as the effective day key. */
+const DAY_RESET_HOUR = 4;
+function effectiveNow(){ return new Date(Date.now() - DAY_RESET_HOUR*3600000); }
+function ymd(d){
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+let today    = effectiveNow();
+let todayStr = ymd(today);
 const APP_START=new Date('2026-04-06');
 const APP_START_STR='2026-04-06';
 
@@ -691,11 +707,26 @@ function getProfile(){return lsGet('profile', {name:'Nilomi'});}
 function saveProfile(){const n=document.getElementById('profileName').value.trim()||'Nilomi';lsSet('profile', {name:n});bumpAndSync();renderProfile();toast('Profile saved');}
 function renderProfile(){document.getElementById('userName').textContent=getProfile().name;}
 
-const doneKey=d=>'done_'+(typeof d==='string'?d:d.toISOString().slice(0,10));
+const doneKey=d=>'done_'+(typeof d==='string'?d:ymd(d));
 let done=new Set(lsGet(doneKey(today), []));
 let notes=lsGet('notes', {});
 const saveState=()=>{localStorage.setItem(doneKey(today), JSON.stringify([...done])); bumpAndSync();};
 const getArr=(ds)=>ds===todayStr?[...done]:lsGet('done_'+ds, []);
+
+/* Rollover check — fires every minute while the app is open, and on visibility change.
+   Handles the case where the user leaves the app open across 4am. */
+function maybeRollOver(){
+  const nT = effectiveNow();
+  const nS = ymd(nT);
+  if(nS !== todayStr){
+    today = nT;
+    todayStr = nS;
+    done = new Set(lsGet(doneKey(today), []));
+    if(typeof render === 'function') render();
+    if(typeof toast === 'function') toast('New day — routine reset');
+  }
+}
+setInterval(maybeRollOver, 60000);
 
 /* --------------------- ITEM / COURSE LOGIC --------------------- */
 function courseInfo(course){
@@ -739,7 +770,7 @@ function calcStreak(){
   for(let i=0;i<365;i++){
     if(i>0)d.setDate(d.getDate()-1);
     if(d<APP_START)break;
-    const arr=getArr(d.toISOString().slice(0,10));
+    const arr=getArr(ymd(d));
     if(arr.length>0)s++;else if(i>0)break;
   }
   return s;
@@ -748,7 +779,7 @@ function calcBestStreak(){
   let best=0,cur=0;const d=new Date(today);
   for(let i=0;i<365;i++){
     if(d<APP_START)break;
-    const arr=getArr(d.toISOString().slice(0,10));
+    const arr=getArr(ymd(d));
     if(arr.length>0){cur++;best=Math.max(best,cur);}else cur=0;
     d.setDate(d.getDate()-1);
   }
@@ -964,7 +995,7 @@ function renderAltGroupPickers(){
       return `<button class="serum-today-btn${active?' active':''}" onclick="pickAlt('${gid}','${id}')"><span class="stb-icon">${it.icon||'🌙'}</span>${escapeHtml(it.name)}</button>`;
     }).join('');
     const days=[];
-    for(let i=6;i>=0;i--){const d=new Date(today);d.setDate(d.getDate()-i);const ds=d.toISOString().slice(0,10);const arr=getArr(ds);
+    for(let i=6;i>=0;i--){const d=new Date(today);d.setDate(d.getDate()-i);const ds=ymd(d);const arr=getArr(ds);
       let picked=null;for(const id of (g.itemIds||[])){if(arr.includes(id)){picked=id;break;}}
       days.push({lbl:DAYS_SHORT[d.getDay()], picked, isToday:i===0});}
     const week=`<div class="skin-cal-lbl" style="margin-top:12px">Last 7 days</div><div class="skin-week">${days.map(d=>{
@@ -997,7 +1028,7 @@ function renderStats(){
   const streak=calcStreak();const best=calcBestStreak();
   const ITEMS=getItemsForToday().filter(i=>!i.noCount);const total=ITEMS.length||1;
   let dc=0,daysWithData=0;const d=new Date(today);
-  for(let i=0;i<today.getDate();i++){if(d<APP_START)break;const arr=getArr(d.toISOString().slice(0,10));if(arr.length>0){daysWithData++;dc+=arr.length;}d.setDate(d.getDate()-1);}
+  for(let i=0;i<today.getDate();i++){if(d<APP_START)break;const arr=getArr(ymd(d));if(arr.length>0){daysWithData++;dc+=arr.length;}d.setDate(d.getDate()-1);}
   const pct=daysWithData>0?Math.round((dc/(daysWithData*total))*100):0;
   document.getElementById('statsRow').innerHTML=`<div class="stat-card"><div class="stat-num">${streak}</div><div class="stat-lbl">Current streak</div></div><div class="stat-card"><div class="stat-num">${best}</div><div class="stat-lbl">Best streak ever</div></div><div class="stat-card"><div class="stat-num">${pct}%</div><div class="stat-lbl">This month</div></div>`;
   document.getElementById('streakNum').textContent=streak;
@@ -1061,15 +1092,58 @@ function renderMonthCal(){
   }
   document.getElementById('calDays').innerHTML=cells;
 }
+/* Returns items that were *supposed* to be taken on a given date, respecting
+   weekly-day frequency. Unlike getItemsForToday, alt-group hiding is disabled
+   for historical days so you can retroactively log whichever serum you
+   actually used that night. */
+function getItemsForDate(dateObj){
+  const items=loadItems();
+  const dow=dateObj.getDay();
+  return items.filter(it=>{
+    if(it.active===false)return false;
+    if(it.frequency==='weekly' && typeof it.weeklyDay==='number' && it.weeklyDay!==dow)return false;
+    return true;
+  }).filter(i=>!i.noCount);
+}
+
+/* Toggle a single item's done-state on a historical date. For today this goes
+   through the live `done` Set + saveState(); for past dates it writes directly
+   to localStorage under the done_YYYY-MM-DD key and bumps Drive sync. */
+function toggleHistorical(ds, itemId, d){
+  const cur = new Set(getArr(ds));
+  if(cur.has(itemId)) cur.delete(itemId); else cur.add(itemId);
+  if(ds === todayStr){
+    done = cur;
+    saveState();
+    render();
+  } else {
+    lsSet('done_'+ds, [...cur]);
+    bumpAndSync();
+  }
+  // Refresh all history views so the change is visible everywhere at once
+  showDayDetail(ds, d);
+  renderMonthCal();
+  renderCompliance();
+  renderMissedLog();
+  renderStats();
+}
+
 function showDayDetail(ds,d){
   selectedDay=ds;renderMonthCal();
   const arr=getArr(ds);
-  const ITEMS=getItemsForToday().filter(i=>!i.noCount);
   const [yr,mo]=ds.split('-');
+  const dateObj=new Date(parseInt(yr), parseInt(mo)-1, parseInt(d));
+  const ITEMS=getItemsForDate(dateObj);
   const el=document.getElementById('dayDetail');
   el.className='day-detail open';
   const doneCount=ITEMS.filter(i=>arr.includes(i.id)).length;
-  el.innerHTML=`<div class="day-detail-title">${parseInt(d)} ${MONTHS[parseInt(mo)-1]} — ${doneCount}/${ITEMS.length} done</div>`+ITEMS.map(it=>`<div class="dd-item"><div class="dd-dot ${arr.includes(it.id)?'dd-done':'dd-miss'}"></div><div class="dd-name">${escapeHtml(it.name)}</div><div class="dd-status">${arr.includes(it.id)?'✓ Done':'Missed'}</div></div>`).join('');
+  const isToday = ds === todayStr;
+  const header = `<div class="day-detail-title">${parseInt(d)} ${MONTHS[parseInt(mo)-1]} — ${doneCount}/${ITEMS.length} done</div><div class="day-detail-hint">Tap any item to toggle — fix missed logs anytime</div>`;
+  el.innerHTML = header + ITEMS.map(it=>{
+    const isDone = arr.includes(it.id);
+    const status = isDone ? '✓ Done · tap to undo' : (isToday ? 'Pending · tap to log' : 'Missed · tap to log');
+    return `<div class="dd-item dd-clickable" onclick="toggleHistorical('${ds}','${it.id}',${parseInt(d)})"><div class="dd-dot ${isDone?'dd-done':'dd-miss'}"></div><div class="dd-name">${escapeHtml(it.name)}</div><div class="dd-status">${status}</div></div>`;
+  }).join('');
 }
 
 function renderCompliance(){
@@ -1080,7 +1154,7 @@ function renderCompliance(){
   const d=new Date(today);
   for(let i=0;i<30;i++){
     if(d<APP_START)break;
-    const ds=d.toISOString().slice(0,10);const arr=getArr(ds);
+    const ds=ymd(d);const arr=getArr(ds);
     ITEMS.forEach(it=>{counts[it.session].t++;if(arr.includes(it.id))counts[it.session].d++;});
     d.setDate(d.getDate()-1);
   }
@@ -1101,7 +1175,7 @@ function renderMissedLog(){
   if(cutoff<APP_START)cutoff=new Date(APP_START);
   const missed=[];const byName={};const d=new Date(today);
   while(d>=cutoff){
-    const ds=d.toISOString().slice(0,10);const arr=getArr(ds);const isToday=ds===todayStr;
+    const ds=ymd(d);const arr=getArr(ds);const isToday=ds===todayStr;
     ITEMS.forEach(it=>{
       if(!arr.includes(it.id)){missed.push({name:it.name,date:new Date(d),ds,isToday});byName[it.name]=(byName[it.name]||0)+1;}
     });
@@ -1121,7 +1195,7 @@ function buildReportData(){
 
   // 90-day window
   const days=[];const d=new Date(today);
-  for(let i=0;i<90;i++){if(d<APP_START)break;const ds=d.toISOString().slice(0,10);const arr=getArr(ds);days.push({ds,arr,date:new Date(d),dow:d.getDay()});d.setDate(d.getDate()-1);}
+  for(let i=0;i<90;i++){if(d<APP_START)break;const ds=ymd(d);const arr=getArr(ds);days.push({ds,arr,date:new Date(d),dow:d.getDay()});d.setDate(d.getDate()-1);}
   const activeDays=days.filter(d=>d.ds===todayStr||d.arr.length>0);
 
   // Per-item stats
@@ -1544,7 +1618,7 @@ async function exportPDF(){
     for(let p=1;p<=pageCount;p++){
       doc.setPage(p);
       doc.setFontSize(8);doc.setTextColor(156,163,175);
-      doc.text('Nilomi v4.1 — Personal Wellness Tracker', 40, H-20);
+      doc.text('Nilomi v4.2 — Personal Wellness Tracker', 40, H-20);
       doc.text(`Page ${p} of ${pageCount}`, W-80, H-20);
     }
 
@@ -1768,7 +1842,7 @@ function showTab(tab){
 }
 
 function loadSettingsUI(){
-  const times=lsGet('notifTimes', {morning:"08:30",afternoon:"13:00",night:"22:00"});
+  const times=lsGet('notifTimes', {morning:"08:30",afternoon:"15:30",night:"22:00"});
   document.getElementById('timeMorning').value=times.morning;document.getElementById('timeAfternoon').value=times.afternoon;document.getElementById('timeNight').value=times.night;
   document.getElementById('profileName').value=getProfile().name;
   renderPushStatus();
@@ -1779,7 +1853,7 @@ function toggleTheme(){document.body.classList.toggle('light');const light=docum
 if(localStorage.getItem('theme')==='light'){document.body.classList.add('light');}
 
 function snooze(mins){document.getElementById('snoozeBanner').style.display='none';setTimeout(()=>{document.getElementById('snoozeBanner').style.display='flex';},mins*60000);}
-function getTimes(){return lsGet('notifTimes', {morning:"08:30",afternoon:"13:00",night:"22:00"});}
+function getTimes(){return lsGet('notifTimes', {morning:"08:30",afternoon:"15:30",night:"22:00"});}
 
 /* --------------------- NATIVE PUSH (iOS-aware) --------------------- */
 function isIOS(){return /iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;}
@@ -1873,15 +1947,19 @@ function scheduleNotifications(){if(!('serviceWorker'in navigator))return;const 
 function heartbeat(){if(!('serviceWorker'in navigator))return;const times=getTimes();navigator.serviceWorker.ready.then(reg=>{if(reg.active)reg.active.postMessage({type:'HEARTBEAT',times});});}
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState==='visible'){
+    maybeRollOver();
     if('Notification'in window&&Notification.permission==='granted')heartbeat();
     // Pull from Drive on focus
     if(driveState.connected) drivePull();
   }
 });
 
+/* Fires just before the 4am day rollover so the summary reflects the
+   effective day that's about to end. If you're still up logging at 3:55am,
+   that's the last call — anything unlogged rolls over as "missed". */
 function checkMidnightSummary(){
   const now=new Date();const h=now.getHours(),m=now.getMinutes();
-  if(h===23&&m>=55){
+  if(h===3&&m>=55){
     const ITEMS=getItemsForToday().filter(i=>!i.noCount);const arr=[...done];
     const missed=ITEMS.filter(i=>!arr.includes(i.id)).map(i=>i.name);
     if('serviceWorker'in navigator&&'Notification'in window&&Notification.permission==='granted'){
@@ -1924,7 +2002,7 @@ function toast(text){
  * Deploy flow: edit this line with your Client ID, commit, push. Sync auto-connects silently.
  * Alternative: visit <app-url>#setup-drive in a browser to set it via prompt (stored in localStorage).
  */
-const DRIVE_CLIENT_ID = '';
+const DRIVE_CLIENT_ID = '776490812025-jol88dhu30b2aioc9ojlunndt4o1qff3.apps.googleusercontent.com';
 /* VAPID public key (optional) — only needed if you want server-pushed notifications.
  * Without this, iOS PWA still gets local reminders via the service worker from open tab.
  * Generate with: npx web-push generate-vapid-keys
