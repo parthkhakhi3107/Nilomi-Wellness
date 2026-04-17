@@ -189,6 +189,16 @@ body{padding-bottom:110px}
 .settings-card{background:var(--card);border:.5px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:10px}
 .settings-title{font-size:13px;font-weight:500;color:var(--text);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
 .settings-sub{font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.5}
+.settings-hint{font-size:10px;color:var(--faint);margin-top:10px;line-height:1.5;opacity:.8}
+.settings-divider{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--faint);text-align:center;margin:18px 0 8px;opacity:.7}
+.app-info{margin-top:12px;font-size:11px;color:var(--muted);line-height:1.7}
+.routine-sub{padding:4px 0}
+.routine-sub-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;font-size:12px;font-weight:500;color:var(--text)}
+.routine-sub-meta{font-size:10px;color:var(--muted);font-weight:400}
+.routine-sub-actions{display:flex;gap:8px;margin-top:8px}
+.routine-sub-actions .btn-add{flex:1;margin-top:0}
+.routine-sub-actions .btn-ghost{flex:1;margin-top:0}
+.routine-divider{height:1px;background:var(--border);opacity:.6;margin:14px 0}
 .time-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .time-label{flex:1;font-size:12px;color:var(--muted)}
 .time-input{background:var(--surface);border:.5px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:13px;padding:6px 10px;outline:none;width:140px;text-align:center;-webkit-appearance:none}
@@ -344,8 +354,6 @@ body.light .tabbar{background:rgba(245,247,245,.93)}
   </div>
 </div>
 
-<div class="stats-row" id="statsRow"></div>
-
 <!-- TODAY -->
 <div id="todayView">
   <div id="refillAlerts"></div>
@@ -383,17 +391,6 @@ body.light .tabbar{background:rgba(245,247,245,.93)}
       <div id="missedList"></div>
     </div>
   </div>
-  <div class="hist-section">
-    <div class="export-card">
-      <div class="export-title">Export your data</div>
-      <div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.5">Rich Excel workbook and PDF report with charts, adherence trends and personalised insights. Perfect to share with your doctor.</div>
-      <div class="export-row">
-        <button class="export-btn primary" id="exportXlsxBtn" onclick="exportExcel()">📊 Export Excel</button>
-        <button class="export-btn" id="exportPdfBtn" onclick="exportPDF()">📄 Export PDF</button>
-      </div>
-      <div id="exportStatus" style="font-size:11px;color:var(--muted);margin-top:10px;display:none;text-align:center"></div>
-    </div>
-  </div>
 </div>
 
 <!-- SETTINGS -->
@@ -402,13 +399,13 @@ body.light .tabbar{background:rgba(245,247,245,.93)}
   <!-- Notifications -->
   <div class="settings-card">
     <div class="settings-title">🔔 Notifications</div>
-    <div class="settings-sub" id="pushHelpText">For iPhone: install to Home Screen first (Safari → Share → Add to Home Screen), then open from the icon and enable.</div>
     <div id="pushStatus" class="drive-status"><span class="drive-dot"></span> Checking…</div>
     <div class="drive-row" style="margin-top:10px">
       <button class="save-btn" id="pushEnableBtn" onclick="enablePush()">Enable push</button>
       <button class="btn-ghost" id="pushTestBtn" onclick="testPush()" style="display:none">Send test</button>
       <button class="btn-ghost" id="pushDisableBtn" onclick="disablePush()" style="display:none">Disable</button>
     </div>
+    <div class="settings-hint" id="pushHelpText">iPhone: install to Home Screen first (Share → Add to Home Screen), then open from the icon.</div>
   </div>
 
   <!-- Profile -->
@@ -416,18 +413,6 @@ body.light .tabbar{background:rgba(245,247,245,.93)}
     <div class="settings-title">Profile</div>
     <div class="time-row"><span class="time-label">Your name</span><input class="time-input" type="text" id="profileName" placeholder="Nilomi"></div>
     <button class="save-btn" onclick="saveProfile()">Save</button>
-  </div>
-
-  <!-- Google Drive sync -->
-  <div class="settings-card">
-    <div class="settings-title">☁ Google Drive sync</div>
-    <div class="settings-sub">Keep your data in sync across devices. Uses <code style="font-size:10px">drive.file</code> scope — the app can only see the single file it creates.</div>
-    <div id="driveStatus" class="drive-status"><span class="drive-dot"></span> Checking…</div>
-    <div class="drive-row" style="margin-top:10px">
-      <button class="save-btn" id="driveConnectBtn" onclick="handleDriveConnectClick()">Connect Google Drive</button>
-      <button class="btn-ghost" id="driveSyncNowBtn" onclick="drivePush()" style="display:none">Sync now</button>
-      <button class="btn-ghost" id="driveDisconnectBtn" onclick="driveDisconnect()" style="display:none">Disconnect</button>
-    </div>
   </div>
 
   <!-- Reminder times -->
@@ -439,36 +424,70 @@ body.light .tabbar{background:rgba(245,247,245,.93)}
     <button class="save-btn" onclick="saveTimes()">Save &amp; reschedule</button>
   </div>
 
-  <!-- Courses -->
+  <!-- Your routine — merged editor for courses, items, and alt groups -->
   <div class="settings-card">
-    <div class="settings-title">Courses <span style="font-size:10px;color:var(--muted);font-weight:400">Day X of Y tracking</span></div>
-    <div class="settings-sub">Create named courses (e.g. "7-day antibiotic") and link medicines to them in the editor.</div>
-    <div id="courseList"></div>
-    <button class="btn-add" onclick="openCourseEditor()">+ Add course</button>
+    <div class="settings-title">Your routine</div>
+
+    <div class="routine-sub">
+      <div class="routine-sub-head"><span>Medicines &amp; skincare</span><span class="routine-sub-meta" id="itemsCount"></span></div>
+      <div class="item-list" id="itemList"></div>
+      <div class="routine-sub-actions">
+        <button class="btn-add" onclick="openItemEditor()">+ Add item</button>
+        <button class="btn-ghost" onclick="restoreDefaults()">Restore defaults</button>
+      </div>
+    </div>
+
+    <div class="routine-divider"></div>
+
+    <div class="routine-sub">
+      <div class="routine-sub-head"><span>Courses</span><span class="routine-sub-meta">Day X of Y tracking</span></div>
+      <div id="courseList"></div>
+      <div class="routine-sub-actions">
+        <button class="btn-add" onclick="openCourseEditor()">+ Add course</button>
+      </div>
+    </div>
+
+    <div class="routine-divider"></div>
+
+    <div class="routine-sub">
+      <div class="routine-sub-head"><span>Alternating groups</span><span class="routine-sub-meta">Pick one per day</span></div>
+      <div id="altGroupList"></div>
+      <div class="routine-sub-actions">
+        <button class="btn-add" onclick="openAltGroupEditor()">+ Add group</button>
+      </div>
+    </div>
   </div>
 
-  <!-- Medicines/items editor -->
+  <div class="settings-divider">Advanced</div>
+
+  <!-- Google Drive sync -->
   <div class="settings-card">
-    <div class="settings-title">Medicines &amp; skincare <span style="font-size:10px;color:var(--muted);font-weight:400" id="itemsCount"></span></div>
-    <div class="settings-sub">Add, edit, or remove anything in your routine. Tap a row to edit.</div>
-    <div class="item-list" id="itemList"></div>
-    <button class="btn-add" onclick="openItemEditor()">+ Add medicine or skincare</button>
-    <button class="btn-ghost" onclick="restoreDefaults()" style="width:100%;margin-top:8px">Restore default items</button>
+    <div class="settings-title">☁ Google Drive sync</div>
+    <div id="driveStatus" class="drive-status"><span class="drive-dot"></span> Checking…</div>
+    <div class="drive-row" style="margin-top:10px">
+      <button class="save-btn" id="driveConnectBtn" onclick="handleDriveConnectClick()">Connect Google Drive</button>
+      <button class="btn-ghost" id="driveSyncNowBtn" onclick="drivePush()" style="display:none">Sync now</button>
+      <button class="btn-ghost" id="driveDisconnectBtn" onclick="driveDisconnect()" style="display:none">Disconnect</button>
+    </div>
+    <div class="settings-hint">Uses <code>drive.file</code> scope — the app can only see the single file it creates.</div>
   </div>
 
-  <!-- Alternating groups (e.g. tonight's serum) -->
+  <!-- Export -->
   <div class="settings-card">
-    <div class="settings-title">Alternating groups <span style="font-size:10px;color:var(--muted);font-weight:400">Pick-one-of options</span></div>
-    <div class="settings-sub">Group items where you pick ONE each day (e.g. alternating night serums). Only the picked item shows up on that day.</div>
-    <div id="altGroupList"></div>
-    <button class="btn-add" onclick="openAltGroupEditor()">+ Add group</button>
+    <div class="settings-title">Export your data</div>
+    <div class="export-row">
+      <button class="export-btn primary" id="exportXlsxBtn" onclick="exportExcel()">📊 Excel</button>
+      <button class="export-btn" id="exportPdfBtn" onclick="exportPDF()">📄 PDF</button>
+    </div>
+    <div id="exportStatus" style="font-size:11px;color:var(--muted);margin-top:10px;display:none;text-align:center"></div>
+    <div class="settings-hint">Rich workbook and report with charts, trends, and insights — share with your doctor.</div>
   </div>
 
   <!-- App info -->
   <div class="settings-card">
     <div class="settings-title">App</div>
     <div class="time-row"><span class="time-label">Theme</span><button class="icon-btn" style="margin:0" onclick="toggleTheme()">Toggle dark / light</button></div>
-    <div style="margin-top:12px;font-size:11px;color:var(--muted);line-height:1.7">Nilomi v4.2 — day rolls over at 4am so late-night logging still counts.<br>Tap any past day in History to edit a missed log.<br>Long-press any card to add a note. Your data auto-syncs across devices.</div>
+    <div class="app-info">Nilomi v4.2 — day rolls over at 4am. Tap any past day in History to edit a missed log.</div>
     <button class="btn-ghost" style="width:100%;margin-top:10px" onclick="wipeLocal()">Reset local data</button>
   </div>
 
@@ -1037,14 +1056,10 @@ function renderRefillAlerts(){
 }
 
 function renderStats(){
-  const streak=calcStreak();const best=calcBestStreak();
-  const ITEMS=getItemsForToday().filter(i=>!i.noCount);const total=ITEMS.length||1;
-  let dc=0,daysWithData=0;const d=new Date(today);
-  for(let i=0;i<today.getDate();i++){if(d<APP_START)break;const arr=getArr(ymd(d));if(arr.length>0){daysWithData++;dc+=arr.length;}d.setDate(d.getDate()-1);}
-  const pct=daysWithData>0?Math.round((dc/(daysWithData*total))*100):0;
-  document.getElementById('statsRow').innerHTML=`<div class="stat-card"><div class="stat-num">${streak}</div><div class="stat-lbl">Current streak</div></div><div class="stat-card"><div class="stat-num">${best}</div><div class="stat-lbl">Best streak ever</div></div><div class="stat-card"><div class="stat-num">${pct}%</div><div class="stat-lbl">This month</div></div>`;
-  document.getElementById('streakNum').textContent=streak;
-  document.getElementById('bestStreak').textContent=best;
+  // Stats row under progress ring was removed (redundant with header pills + History).
+  // Just keep the header pills fresh.
+  document.getElementById('streakNum').textContent=calcStreak();
+  document.getElementById('bestStreak').textContent=calcBestStreak();
 }
 
 function render(){
