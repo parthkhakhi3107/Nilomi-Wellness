@@ -12,6 +12,18 @@
 <link rel="apple-touch-icon" href="icon-192.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<!-- Google APIs for Drive sync (backend only, no UI) -->
+<script src="https://apis.google.com/js/api.js" defer></script>
+<script src="https://accounts.google.com/gsi/client" defer></script>
+<!-- Reporting libraries (lazy-loaded only on export) -->
+<script>
+window.__loadLib=function(src){return new Promise((res,rej)=>{if(document.querySelector(`script[src="${src}"]`)){return res();}const s=document.createElement('script');s.src=src;s.onload=()=>res();s.onerror=()=>rej(new Error('Failed: '+src));document.head.appendChild(s);});};
+window.__loadReportingLibs=function(){return Promise.all([
+  window.__loadLib('https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js'),
+  window.__loadLib('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js'),
+  window.__loadLib('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
+]).then(()=>window.__loadLib('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js'));};
+</script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -111,19 +123,17 @@ body{padding-bottom:110px}
 .tonight-pill{font-size:10px;border-radius:4px;padding:1px 6px;display:inline-block;margin-top:2px}
 .skin-cal{background:var(--card);border:.5px solid var(--border);border-radius:var(--radius);padding:13px;margin-bottom:8px}
 .skin-cal-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:9px;font-weight:500}
-.serum-today-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.serum-today-btns{display:grid;gap:8px;margin-bottom:8px}
 .serum-today-btn{display:flex;align-items:center;justify-content:center;gap:7px;padding:11px;background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);cursor:pointer;font-family:var(--font-body);font-size:13px;font-weight:500;color:var(--muted);transition:all .2s;-webkit-tap-highlight-color:transparent}
 .serum-today-btn:active{transform:scale(.97)}
 .stb-icon{font-size:16px}
-.stb-bril{background:var(--rose-dim);border-color:rgba(251,113,133,.4);color:var(--rose)}
-.stb-juv{background:var(--purple-dim);border-color:rgba(167,139,250,.4);color:var(--purple)}
-.serum-override-note{font-size:11px;color:var(--teal);margin-bottom:10px}
+.serum-today-btn.active{background:var(--rose-dim);border-color:rgba(251,113,133,.4);color:var(--rose)}
 .skin-week{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:7px}
 .skin-day{display:flex;flex-direction:column;align-items:center;gap:3px}
 .skin-day-lbl{font-size:9px;color:var(--muted)}
-.skin-dot{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:500}
-.sd-bril{background:var(--rose-dim);color:var(--rose)}.sd-juv{background:var(--purple-dim);color:var(--purple)}.sd-none{background:var(--surface);border:.5px solid var(--border);color:var(--faint)}.sd-today{outline:2px solid var(--green);outline-offset:1px}
-.tonight-rec{font-size:12px;color:var(--text)}
+.skin-dot{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:500;background:var(--surface);border:.5px solid var(--border);color:var(--faint)}
+.sd-on{background:var(--rose-dim);color:var(--rose);border-color:transparent}
+.sd-today{outline:2px solid var(--green);outline-offset:1px}
 .all-done{text-align:center;padding:28px 0 4px;display:none}
 .all-done-icon{font-size:38px;margin-bottom:7px}
 .all-done-title{font-family:var(--font-display);font-size:22px;color:var(--green-soft);margin-bottom:3px}
@@ -138,7 +148,7 @@ body{padding-bottom:110px}
 .cal-dow-cell{text-align:center;font-size:9px;color:var(--muted);font-weight:500;letter-spacing:.05em;padding:3px 0}
 .cal-days{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
 .cal-cell{aspect-ratio:1;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer;transition:all .15s}
-.cc-empty{pointer-events:none}.cc-full{background:var(--green);color:#0f1a14;font-weight:500}.cc-partial{background:var(--amber-dim);color:var(--amber-soft)}.cc-none{background:var(--surface);color:var(--faint)}.cc-future{color:var(--faint);pointer-events:none}.cc-today{outline:2px solid var(--green);outline-offset:1px}.cc-selected{outline:2px solid var(--blue);outline-offset:1px}.cc-start{border:1.5px solid var(--teal)!important}
+.cc-empty{pointer-events:none}.cc-full{background:var(--green);color:#0f1a14;font-weight:500}.cc-partial{background:var(--amber-dim);color:var(--amber-soft)}.cc-none{background:var(--surface);color:var(--faint)}.cc-future{color:var(--faint);pointer-events:none}.cc-today{outline:2px solid var(--green);outline-offset:1px}.cc-selected{outline:2px solid var(--blue);outline-offset:1px}
 .day-detail{background:var(--card);border:.5px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px;display:none}
 .day-detail.open{display:block}
 .day-detail-title{font-size:13px;font-weight:500;color:var(--text);margin-bottom:10px}
@@ -173,16 +183,50 @@ body{padding-bottom:110px}
 .export-btn{flex:1;min-width:100px;background:var(--surface);border:.5px solid var(--border);border-radius:10px;padding:10px;font-size:12px;font-weight:500;cursor:pointer;color:var(--text);font-family:var(--font-body);text-align:center}
 .export-btn.primary{background:var(--green-dim);border-color:rgba(74,222,128,.25);color:var(--green-soft)}
 .settings-card{background:var(--card);border:.5px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:10px}
-.settings-title{font-size:13px;font-weight:500;color:var(--text);margin-bottom:12px}
+.settings-title{font-size:13px;font-weight:500;color:var(--text);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+.settings-sub{font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.5}
 .time-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .time-label{flex:1;font-size:12px;color:var(--muted)}
-.time-input{background:var(--surface);border:.5px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:13px;padding:6px 10px;outline:none;width:110px;text-align:center;-webkit-appearance:none}
+.time-input{background:var(--surface);border:.5px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:13px;padding:6px 10px;outline:none;width:140px;text-align:center;-webkit-appearance:none}
+.text-input{background:var(--surface);border:.5px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:13px;padding:8px 10px;outline:none;width:100%}
 .save-btn{width:100%;background:var(--green);color:#0f1a14;border:none;border-radius:10px;padding:10px;font-size:13px;font-weight:500;cursor:pointer;font-family:var(--font-body);margin-top:4px}
-.serum-pick-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;padding:12px 8px;background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);cursor:pointer;font-family:var(--font-body);font-size:12px;color:var(--muted);transition:all .2s}
-.serum-pick-btn:active{transform:scale(.97)}
-.serum-pick-btn.active{background:var(--rose-dim);border-color:rgba(251,113,133,.35);color:var(--rose)}
-.serum-pick-btn.active.serum-auto{background:var(--teal-dim);border-color:rgba(45,212,191,.35);color:var(--teal)}
-.serum-pick-btn.juv-active{background:var(--purple-dim);border-color:rgba(167,139,250,.35);color:var(--purple)}
+.btn-ghost{background:var(--surface);color:var(--text);border:.5px solid var(--border);border-radius:10px;padding:10px;font-size:13px;font-weight:500;cursor:pointer;font-family:var(--font-body)}
+.btn-danger{background:var(--rose-dim);color:var(--rose);border:.5px solid rgba(251,113,133,.25);border-radius:10px;padding:8px 12px;font-size:12px;font-weight:500;cursor:pointer;font-family:var(--font-body)}
+.btn-add{width:100%;background:var(--surface);color:var(--green-soft);border:1px dashed rgba(74,222,128,.35);border-radius:10px;padding:12px;font-size:13px;font-weight:500;cursor:pointer;font-family:var(--font-body);margin-top:8px}
+
+/* Item editor list */
+.item-list{display:flex;flex-direction:column;gap:6px}
+.item-row{background:var(--surface);border:.5px solid var(--border);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px}
+.item-row-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.item-row-body{flex:1;min-width:0}
+.item-row-name{font-size:12px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item-row-meta{font-size:10px;color:var(--muted);margin-top:2px}
+.item-row-actions{display:flex;gap:4px;flex-shrink:0}
+.item-row-btn{background:transparent;border:.5px solid var(--border);border-radius:6px;padding:5px 9px;font-size:11px;color:var(--muted);cursor:pointer;font-family:var(--font-body)}
+
+/* Course rows */
+.course-row{background:var(--surface);border:.5px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:6px}
+.course-row-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.course-row-name{font-size:12px;font-weight:500;color:var(--text)}
+.course-row-inputs{display:grid;grid-template-columns:1fr 80px;gap:6px;margin-top:6px}
+
+/* Drive sync card */
+.drive-status{font-size:11px;padding:8px 10px;border-radius:8px;background:var(--surface);margin-bottom:10px;line-height:1.5}
+.drive-status.connected{background:var(--green-dim);color:var(--green-soft)}
+.drive-status.error{background:var(--rose-dim);color:var(--rose)}
+.drive-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--faint);margin-right:6px;vertical-align:middle}
+.drive-dot.on{background:var(--green)}
+.drive-dot.syncing{background:var(--amber);animation:pulse 1s ease-in-out infinite}
+.drive-dot.err{background:var(--rose)}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+.drive-row{display:flex;gap:8px;flex-wrap:wrap}
+.drive-row .save-btn{flex:1;margin-top:0}
+.drive-row .btn-ghost{flex:1}
+.drive-helplink{font-size:11px;color:var(--blue);cursor:pointer;text-decoration:underline;margin-top:4px;display:inline-block;background:none;border:none;padding:0;font-family:var(--font-body)}
+
+/* Sync indicator at the bottom-right */
+.sync-toast{position:fixed;bottom:92px;right:12px;background:var(--card);border:.5px solid var(--border);border-radius:20px;padding:6px 12px;font-size:11px;color:var(--muted);z-index:50;opacity:0;transform:translateY(8px);transition:all .2s;pointer-events:none;display:flex;align-items:center;gap:6px}
+.sync-toast.show{opacity:1;transform:none}
 
 /* ── Celebration overlay ── */
 .celeb-overlay{display:none;position:fixed;inset:0;z-index:300;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,0)}
@@ -208,6 +252,28 @@ body{padding-bottom:110px}
 .celeb-ring{position:absolute;width:200px;height:200px;border-radius:50%;border:2px solid rgba(74,222,128,.1);top:-60px;right:-60px;animation:celebRingSpin 8s linear infinite}
 .celeb-ring2{position:absolute;width:140px;height:140px;border-radius:50%;border:2px solid rgba(74,222,128,.07);bottom:-40px;left:-40px;animation:celebRingSpin 12s linear infinite reverse}
 @keyframes celebRingSpin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+
+/* Generic modal */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;align-items:flex-end;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:var(--card);border-radius:20px 20px 0 0;padding:20px 20px 36px;width:100%;max-width:430px;border-top:.5px solid var(--border);max-height:90dvh;overflow-y:auto}
+.modal h3{font-family:var(--font-display);font-size:18px;color:var(--text);margin-bottom:4px}
+.modal p.modal-sub{font-size:12px;color:var(--muted);margin-bottom:14px}
+.modal textarea,.modal input[type=text],.modal input[type=number]{width:100%;background:var(--surface);border:.5px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--font-body);font-size:13px;padding:10px 12px;outline:none;font-weight:300}
+.modal textarea{resize:none;height:80px}
+.modal textarea::placeholder,.modal input::placeholder{color:var(--faint)}
+.modal-actions{display:flex;gap:8px;margin-top:14px}
+.modal-actions .save-btn{flex:1;margin-top:0}
+.modal-actions .btn-ghost{flex:0 0 auto}
+
+.form-label{font-size:10px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;display:block;margin:10px 0 5px}
+.form-row{display:flex;gap:8px}
+.form-row>*{flex:1}
+.form-select{background:var(--surface);border:.5px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--font-body);font-size:13px;padding:9px 10px;outline:none;width:100%;font-weight:300;-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%237a9a7a' d='M5 6L0 0h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px}
+.color-swatches{display:flex;gap:6px;flex-wrap:wrap}
+.color-sw{width:30px;height:30px;border-radius:8px;cursor:pointer;border:2px solid transparent}
+.color-sw.active{border-color:var(--text)}
+
 .note-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;align-items:flex-end;justify-content:center}
 .note-modal-bg.open{display:flex}
 .note-modal{background:var(--card);border-radius:20px 20px 0 0;padding:20px 20px 36px;width:100%;max-width:430px;border-top:.5px solid var(--border)}
@@ -230,7 +296,7 @@ body.light .tabbar{background:rgba(245,247,245,.93)}
 <div class="app">
 <div class="header">
   <div>
-    <div class="header-greeting">Good <em id="timeOfDay">morning</em>,<br>Nilomi</div>
+    <div class="header-greeting">Good <em id="timeOfDay">morning</em>,<br><span id="userName">Nilomi</span></div>
     <div class="header-date" id="headerDate"></div>
   </div>
   <button class="icon-btn" onclick="toggleTheme()" id="themeBtn">☀️</button>
@@ -279,11 +345,12 @@ body.light .tabbar{background:rgba(245,247,245,.93)}
 <!-- TODAY -->
 <div id="todayView">
   <div id="refillAlerts"></div>
+  <div id="altGroupsHost"></div>
   <div class="section"><div class="section-head"><span class="section-label">☀ Morning</span><span class="section-count" id="cntMorning"></span></div><div id="listMorning"></div></div>
   <div class="section"><div class="section-head"><span class="section-label">🌤 Afternoon</span><span class="section-count" id="cntAfternoon"></span></div><div id="listAfternoon"></div></div>
-  <div class="section"><div class="section-head"><span class="section-label">🌙 Bedtime</span><span class="section-count" id="cntNight"></span></div><div id="skinCal"></div><div id="listNight"></div></div>
+  <div class="section"><div class="section-head"><span class="section-label">🌙 Bedtime</span><span class="section-count" id="cntNight"></span></div><div id="listNight"></div></div>
   <div class="section"><div class="section-head"><span class="section-label">💧 As needed</span><span class="section-count" id="cntAsNeeded"></span></div><div id="listAsNeeded"></div></div>
-  <div class="all-done" id="allDone"><div class="all-done-icon">🌿</div><div class="all-done-title">All done!</div><div class="all-done-sub">You've completed today's full routine.<br>Keep it up, Nilomi.</div></div>
+  <div class="all-done" id="allDone"><div class="all-done-icon">🌿</div><div class="all-done-title">All done!</div><div class="all-done-sub">You've completed today's full routine.<br>Keep it up.</div></div>
 </div>
 
 <!-- HISTORY -->
@@ -315,17 +382,39 @@ body.light .tabbar{background:rgba(245,247,245,.93)}
   <div class="hist-section">
     <div class="export-card">
       <div class="export-title">Export your data</div>
-      <div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.5">CSV opens in Excel or Sheets. PDF is a clean formatted report you can share with your doctor.</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.5">Rich Excel workbook and PDF report with charts, adherence trends and personalised insights. Perfect to share with your doctor.</div>
       <div class="export-row">
-        <button class="export-btn primary" onclick="exportCSV()">📊 Export CSV</button>
-        <button class="export-btn" onclick="exportPDF()">📄 Export PDF</button>
+        <button class="export-btn primary" id="exportXlsxBtn" onclick="exportExcel()">📊 Export Excel</button>
+        <button class="export-btn" id="exportPdfBtn" onclick="exportPDF()">📄 Export PDF</button>
       </div>
+      <div id="exportStatus" style="font-size:11px;color:var(--muted);margin-top:10px;display:none;text-align:center"></div>
     </div>
   </div>
 </div>
 
 <!-- SETTINGS -->
 <div id="settingsView" style="display:none">
+
+  <!-- Notifications -->
+  <div class="settings-card">
+    <div class="settings-title">🔔 Notifications</div>
+    <div class="settings-sub" id="pushHelpText">For iPhone: install to Home Screen first (Safari → Share → Add to Home Screen), then open from the icon and enable.</div>
+    <div id="pushStatus" class="drive-status"><span class="drive-dot"></span> Checking…</div>
+    <div class="drive-row" style="margin-top:10px">
+      <button class="save-btn" id="pushEnableBtn" onclick="enablePush()">Enable push</button>
+      <button class="btn-ghost" id="pushTestBtn" onclick="testPush()" style="display:none">Send test</button>
+      <button class="btn-ghost" id="pushDisableBtn" onclick="disablePush()" style="display:none">Disable</button>
+    </div>
+  </div>
+
+  <!-- Profile -->
+  <div class="settings-card">
+    <div class="settings-title">Profile</div>
+    <div class="time-row"><span class="time-label">Your name</span><input class="time-input" type="text" id="profileName" placeholder="Nilomi"></div>
+    <button class="save-btn" onclick="saveProfile()">Save</button>
+  </div>
+
+  <!-- Reminder times -->
   <div class="settings-card">
     <div class="settings-title">Reminder times</div>
     <div class="time-row"><span class="time-label">☀ Morning</span><input class="time-input" type="time" id="timeMorning" value="08:30"></div>
@@ -333,19 +422,40 @@ body.light .tabbar{background:rgba(245,247,245,.93)}
     <div class="time-row"><span class="time-label">🌙 Bedtime</span><input class="time-input" type="time" id="timeNight" value="22:00"></div>
     <button class="save-btn" onclick="saveTimes()">Save &amp; reschedule</button>
   </div>
+
+  <!-- Courses -->
   <div class="settings-card">
-    <div class="settings-title">Course start dates</div>
-    <div class="time-row"><span class="time-label">Clingen Forte (7 days)</span><input class="time-input" type="date" id="startClingen"></div>
-    <div class="time-row"><span class="time-label">Canesten (7 days)</span><input class="time-input" type="date" id="startCanesten"></div>
-    <div class="time-row"><span class="time-label">30-day meds started</span><input class="time-input" type="date" id="start30day"></div>
-    <button class="save-btn" onclick="saveCourseSettings()">Save course dates</button>
+    <div class="settings-title">Courses <span style="font-size:10px;color:var(--muted);font-weight:400">Day X of Y tracking</span></div>
+    <div class="settings-sub">Create named courses (e.g. "7-day antibiotic") and link medicines to them in the editor.</div>
+    <div id="courseList"></div>
+    <button class="btn-add" onclick="openCourseEditor()">+ Add course</button>
   </div>
 
+  <!-- Medicines/items editor -->
+  <div class="settings-card">
+    <div class="settings-title">Medicines &amp; skincare <span style="font-size:10px;color:var(--muted);font-weight:400" id="itemsCount"></span></div>
+    <div class="settings-sub">Add, edit, or remove anything in your routine. Tap a row to edit.</div>
+    <div class="item-list" id="itemList"></div>
+    <button class="btn-add" onclick="openItemEditor()">+ Add medicine or skincare</button>
+    <button class="btn-ghost" onclick="restoreDefaults()" style="width:100%;margin-top:8px">Restore default items</button>
+  </div>
+
+  <!-- Alternating groups (e.g. tonight's serum) -->
+  <div class="settings-card">
+    <div class="settings-title">Alternating groups <span style="font-size:10px;color:var(--muted);font-weight:400">Pick-one-of options</span></div>
+    <div class="settings-sub">Group items where you pick ONE each day (e.g. alternating night serums). Only the picked item shows up on that day.</div>
+    <div id="altGroupList"></div>
+    <button class="btn-add" onclick="openAltGroupEditor()">+ Add group</button>
+  </div>
+
+  <!-- App info -->
   <div class="settings-card">
     <div class="settings-title">App</div>
     <div class="time-row"><span class="time-label">Theme</span><button class="icon-btn" style="margin:0" onclick="toggleTheme()">Toggle dark / light</button></div>
-    <div style="margin-top:12px;font-size:11px;color:var(--muted);line-height:1.7">Nilomi v3.0<br>Long-press any card to add a note.<br>All data stored privately on this device only.</div>
+    <div style="margin-top:12px;font-size:11px;color:var(--muted);line-height:1.7">Nilomi v4.1 — customizable, cloud-synced, with rich reporting.<br>Long-press any card to add a note.<br>Your data auto-syncs in the background across devices.</div>
+    <button class="btn-ghost" style="width:100%;margin-top:10px" onclick="wipeLocal()">Reset local data</button>
   </div>
+
 </div>
 </div>
 
@@ -364,6 +474,7 @@ body.light .tabbar{background:rgba(245,247,245,.93)}
   </div>
 </div>
 
+<!-- Note modal -->
 <div class="note-modal-bg" id="noteModalBg">
   <div class="note-modal">
     <h3 id="noteModalTitle">Add note</h3>
@@ -375,6 +486,117 @@ body.light .tabbar{background:rgba(245,247,245,.93)}
     </div>
   </div>
 </div>
+
+<!-- Item editor modal -->
+<div class="modal-bg" id="itemEditorBg">
+  <div class="modal">
+    <h3 id="itemEditorTitle">Add medicine</h3>
+    <p class="modal-sub">Fill in the details. Fields with * are required.</p>
+    <label class="form-label">Name *</label>
+    <input type="text" id="ieName" placeholder="e.g. Vitamin D3">
+    <label class="form-label">Detail / instructions</label>
+    <input type="text" id="ieDetail" placeholder="e.g. 1 tab · After breakfast">
+    <div class="form-row">
+      <div>
+        <label class="form-label">Session *</label>
+        <select class="form-select" id="ieSession">
+          <option value="morning">☀ Morning</option>
+          <option value="afternoon">🌤 Afternoon</option>
+          <option value="night">🌙 Bedtime</option>
+          <option value="asneeded">💧 As needed</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Icon (emoji)</label>
+        <input type="text" id="ieIcon" maxlength="4" placeholder="💊">
+      </div>
+    </div>
+    <label class="form-label">Colour tag</label>
+    <div class="color-swatches" id="ieColors">
+      <div class="color-sw ic-blue" data-color="ic-blue"></div>
+      <div class="color-sw ic-amber" data-color="ic-amber"></div>
+      <div class="color-sw ic-teal" data-color="ic-teal"></div>
+      <div class="color-sw ic-rose" data-color="ic-rose"></div>
+      <div class="color-sw ic-purple" data-color="ic-purple"></div>
+      <div class="color-sw ic-green" data-color="ic-green"></div>
+    </div>
+    <div class="form-row">
+      <div>
+        <label class="form-label">Frequency</label>
+        <select class="form-select" id="ieFrequency">
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly (specific day)</option>
+        </select>
+      </div>
+      <div id="ieWeeklyDayWrap" style="display:none">
+        <label class="form-label">Day of week</label>
+        <select class="form-select" id="ieWeeklyDay">
+          <option value="0">Sunday</option>
+          <option value="1">Monday</option>
+          <option value="2">Tuesday</option>
+          <option value="3">Wednesday</option>
+          <option value="4">Thursday</option>
+          <option value="5">Friday</option>
+          <option value="6">Saturday</option>
+        </select>
+      </div>
+    </div>
+    <label class="form-label">Linked course (optional)</label>
+    <select class="form-select" id="ieCourse"><option value="">— none —</option></select>
+    <label class="form-label">Alternating group (optional)</label>
+    <select class="form-select" id="ieAltGroup"><option value="">— none —</option></select>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeItemEditor()">Cancel</button>
+      <button class="btn-danger" id="ieDeleteBtn" onclick="deleteItem()" style="display:none">Delete</button>
+      <button class="save-btn" onclick="saveItemEditor()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Course editor modal -->
+<div class="modal-bg" id="courseEditorBg">
+  <div class="modal">
+    <h3 id="courseEditorTitle">Add course</h3>
+    <p class="modal-sub">A course tracks "Day X of Y" for a medicine with a defined duration.</p>
+    <label class="form-label">Name *</label>
+    <input type="text" id="ceName" placeholder="e.g. 7-day antibiotic">
+    <div class="form-row">
+      <div>
+        <label class="form-label">Duration (days) *</label>
+        <input type="number" id="ceDays" min="1" max="365" placeholder="7">
+      </div>
+      <div>
+        <label class="form-label">Start date *</label>
+        <input class="time-input" style="width:100%" type="date" id="ceStart">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeCourseEditor()">Cancel</button>
+      <button class="btn-danger" id="ceDeleteBtn" onclick="deleteCourse()" style="display:none">Delete</button>
+      <button class="save-btn" onclick="saveCourseEditor()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Alt group editor modal -->
+<div class="modal-bg" id="altGroupEditorBg">
+  <div class="modal">
+    <h3 id="altGroupEditorTitle">Add alternating group</h3>
+    <p class="modal-sub">Group two or more items where you pick just one per day.</p>
+    <label class="form-label">Group label *</label>
+    <input type="text" id="agName" placeholder="e.g. Tonight's serum">
+    <label class="form-label">Items in this group</label>
+    <div id="agItemsBox" style="display:flex;flex-direction:column;gap:6px"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeAltGroupEditor()">Cancel</button>
+      <button class="btn-danger" id="agDeleteBtn" onclick="deleteAltGroup()" style="display:none">Delete</button>
+      <button class="save-btn" onclick="saveAltGroupEditor()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Sync toast -->
+<div class="sync-toast" id="syncToast"><span class="drive-dot on"></span><span id="syncToastText">Synced</span></div>
 
 <div class="tabbar">
   <div class="tab active" id="tabToday" onclick="showTab('today')">
@@ -389,86 +611,127 @@ body.light .tabbar{background:rgba(245,247,245,.93)}
 </div>
 
 <script>
+/* ============================================================
+ *  NILOMI v4 — Customizable medicine & skincare tracker
+ *  - User-editable medicines, courses, alternating groups
+ *  - Google Drive sync (drive.file scope, last-write-wins)
+ * ============================================================ */
+
 const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DAYS_SHORT=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const today=new Date();
 const todayStr=today.toISOString().slice(0,10);
-const isSunday=today.getDay()===0;
 const APP_START=new Date('2026-04-06');
 const APP_START_STR='2026-04-06';
-const doneKey=d=>'done_'+(typeof d==='string'?d:d.toISOString().slice(0,10));
-let done=new Set(JSON.parse(localStorage.getItem(doneKey(today))||'[]'));
-let notes=JSON.parse(localStorage.getItem('notes')||'{}');
-const saveState=()=>localStorage.setItem(doneKey(today),JSON.stringify([...done]));
-// Always use live done Set for today, localStorage for past days
-const getArr=(ds)=>ds===todayStr?[...done]:JSON.parse(localStorage.getItem('done_'+ds)||'[]');
-const loadCourses=()=>{
-  const stored=JSON.parse(localStorage.getItem('courses')||'{}');
-  if(!stored.meds30)stored.meds30=APP_START_STR;
-  if(!stored.clingen)stored.clingen=APP_START_STR;
-  if(!stored.canesten)stored.canesten=APP_START_STR;
-  return stored;
+
+/* --------------------- DEFAULT DATA (seeds) --------------------- */
+const DEFAULT_COURSES = {
+  meds30:   {name:'30-day meds',    startDate:APP_START_STR, days:30},
+  clingen:  {name:'Clingen Forte',  startDate:APP_START_STR, days:7},
+  canesten: {name:'Canesten Cream', startDate:APP_START_STR, days:7}
 };
+const DEFAULT_ALT_GROUPS = {
+  nightSerum: {label:"Tonight's serum", itemIds:['brilante','juveskin'], currentPick:'brilante'}
+};
+const DEFAULT_ITEMS = [
+  {id:'jupishine', name:'Jupishine',           detail:'1 tab · After breakfast',          session:'morning',   icon:'💊', color:'ic-blue',   courseId:'meds30',  frequency:'daily'},
+  {id:'renocia',   name:'Renocia Diva',        detail:'1 tab · After breakfast',          session:'morning',   icon:'💊', color:'ic-blue',   courseId:'meds30',  frequency:'daily'},
+  {id:'vitd3',     name:'Vitamin D3',          detail:'1 tab · After breakfast',          session:'morning',   icon:'☀️', color:'ic-amber',  courseId:'meds30',  frequency:'daily'},
+  {id:'vitakind',  name:'Vitakind Zit',        detail:'1 tab · After breakfast',          session:'morning',   icon:'💊', color:'ic-blue',   courseId:'meds30',  frequency:'daily'},
+  {id:'omega3',    name:'Omega-3',             detail:'1 tab · After breakfast',          session:'morning',   icon:'🐟', color:'ic-teal',   courseId:'meds30',  frequency:'daily'},
+  {id:'glutone',   name:'Glutone (Niacinamide)', detail:'Apply to face · After meds',     session:'morning',   icon:'✨', color:'ic-rose',   frequency:'daily'},
+  {id:'flawlizo',  name:'Flawlizo Acne Gel',   detail:'Apply to face · After Glutone',    session:'morning',   icon:'🧴', color:'ic-rose',   frequency:'daily'},
+  {id:'rivela',    name:'Rivela Sunscreen',    detail:'Apply generously · Last AM step',  session:'morning',   icon:'🌞', color:'ic-amber',  frequency:'daily'},
+  {id:'glibest-am',name:'Glibest Lotion (back)', detail:'Apply to back · Morning',        session:'morning',   icon:'🤍', color:'ic-purple', frequency:'daily'},
+  {id:'tfaze',     name:'T Faze',              detail:'1 tab · After lunch',              session:'afternoon', icon:'💊', color:'ic-blue',   frequency:'daily'},
+  {id:'clingen',   name:'Clingen Forte',       detail:'1 tab · Before bed',               session:'night',     icon:'💊', color:'ic-blue',   courseId:'clingen', frequency:'daily'},
+  {id:'lactofy',   name:'Lactofy',             detail:'1 tab · Before bed',               session:'night',     icon:'💊', color:'ic-green',  courseId:'meds30',  frequency:'daily'},
+  {id:'renocia-sun',name:'Renocia Diva (Sunday extra)', detail:'Extra Sunday-night dose', session:'night',     icon:'💊', color:'ic-blue',   frequency:'weekly', weeklyDay:0},
+  {id:'glibest-pm',name:'Glibest Lotion (back)', detail:'Apply to back · Bedtime',        session:'night',     icon:'🤍', color:'ic-purple', frequency:'daily'},
+  {id:'theara',    name:'Theara Hair Serum',   detail:'5 sprays on scalp · Bedtime',      session:'night',     icon:'💆', color:'ic-teal',   frequency:'daily'},
+  {id:'brilante',  name:'Brilante Max Serum',  detail:"Apply to face · Tonight's pick",   session:'night',     icon:'🌙', color:'ic-rose',   frequency:'daily'},
+  {id:'juveskin',  name:'Juveskin (Retinol)',  detail:"Apply to face · Tonight's pick",   session:'night',     icon:'🌙', color:'ic-purple', frequency:'daily'},
+  {id:'canesten',  name:'Canesten Cream',      detail:'Apply as needed',                  session:'asneeded',  icon:'🧴', color:'ic-teal',   courseId:'canesten', frequency:'daily', noCount:true},
+];
 
-function courseInfo(s,total){
-  if(!s)return null;
-  const day=Math.floor((today-new Date(s))/86400000)+1;
-  if(day<1||day>total)return{active:false};
-  return{active:true,day,total,left:total-day+1};
+/* --------------------- STORAGE HELPERS --------------------- */
+function lsGet(key, def){try{const v=localStorage.getItem(key);return v===null?def:JSON.parse(v);}catch(e){return def;}}
+function lsSet(key, val){localStorage.setItem(key, JSON.stringify(val));}
+
+function loadItems(){
+  const stored=lsGet('items', null);
+  if(!stored || !Array.isArray(stored) || stored.length===0){lsSet('items', DEFAULT_ITEMS);return JSON.parse(JSON.stringify(DEFAULT_ITEMS));}
+  return stored;
 }
-function courseDaysLeft(s,total){
-  if(!s)return null;
-  return total-Math.floor((today-new Date(s))/86400000);
+function saveItems(items){lsSet('items', items); bumpAndSync();}
+
+function loadCourses(){
+  const stored=lsGet('courses', null);
+  if(!stored || typeof stored!=='object'){lsSet('courses', DEFAULT_COURSES);return JSON.parse(JSON.stringify(DEFAULT_COURSES));}
+  // Migration: old format used bare date strings as values
+  let needsSave=false;
+  const out={};
+  for(const [k,v] of Object.entries(stored)){
+    if(typeof v==='string'){out[k]={name:k, startDate:v, days:k==='meds30'?30:7}; needsSave=true;}
+    else out[k]=v;
+  }
+  if(needsSave)lsSet('courses', out);
+  return out;
+}
+function saveCourses(c){lsSet('courses', c); bumpAndSync();}
+
+function loadAltGroups(){
+  const stored=lsGet('altGroups', null);
+  if(!stored || typeof stored!=='object'){lsSet('altGroups', DEFAULT_ALT_GROUPS);return JSON.parse(JSON.stringify(DEFAULT_ALT_GROUPS));}
+  return stored;
+}
+function saveAltGroups(g){lsSet('altGroups', g); bumpAndSync();}
+
+function getProfile(){return lsGet('profile', {name:'Nilomi'});}
+function saveProfile(){const n=document.getElementById('profileName').value.trim()||'Nilomi';lsSet('profile', {name:n});bumpAndSync();renderProfile();toast('Profile saved');}
+function renderProfile(){document.getElementById('userName').textContent=getProfile().name;}
+
+const doneKey=d=>'done_'+(typeof d==='string'?d:d.toISOString().slice(0,10));
+let done=new Set(lsGet(doneKey(today), []));
+let notes=lsGet('notes', {});
+const saveState=()=>{localStorage.setItem(doneKey(today), JSON.stringify([...done])); bumpAndSync();};
+const getArr=(ds)=>ds===todayStr?[...done]:lsGet('done_'+ds, []);
+
+/* --------------------- ITEM / COURSE LOGIC --------------------- */
+function courseInfo(course){
+  if(!course||!course.startDate||!course.days)return null;
+  const day=Math.floor((today-new Date(course.startDate))/86400000)+1;
+  if(day<1||day>course.days)return{active:false};
+  return{active:true, day, total:course.days, left:course.days-day+1};
+}
+function courseDaysLeft(course){
+  if(!course||!course.startDate||!course.days)return null;
+  return course.days-Math.floor((today-new Date(course.startDate))/86400000);
 }
 
-function getNightSerum(){
-  return localStorage.getItem('serumPick')||'brilante';
+function getItemsForToday(){
+  const items=loadItems();
+  const groups=loadAltGroups();
+  const hiddenByAlt=new Set();
+  // For each alt group, hide items NOT currently picked
+  for(const [gid,g] of Object.entries(groups)){
+    (g.itemIds||[]).forEach(id=>{if(id!==g.currentPick)hiddenByAlt.add(id);});
+  }
+  const dow=today.getDay();
+  return items.filter(it=>{
+    if(it.active===false)return false;
+    if(hiddenByAlt.has(it.id))return false;
+    if(it.frequency==='weekly' && typeof it.weeklyDay==='number' && it.weeklyDay!==dow)return false;
+    return true;
+  });
 }
 
-function setSerum(pick){
-  localStorage.setItem('serumPick',pick);
-  updateSerumPickerUI();
-  renderSkinCal();
-  render();
-}
-
-function updateSerumPickerUI(){
-  const pick=getNightSerum();
-  const bBtn=document.getElementById('serumBrilBtn');
-  const jBtn=document.getElementById('serumJuvBtn');
-  if(!bBtn)return;
-  bBtn.className='serum-pick-btn'+(pick==='brilante'?' active':'');
-  jBtn.className='serum-pick-btn'+(pick==='juveskin'?' juv-active':'');
-}
-
-function getItems(){
-  const c=loadCourses();
-  const clInfo=courseInfo(c.clingen,7);
-  const canInfo=courseInfo(c.canesten,7);
-  const serum=getNightSerum();
-  return[
-    {id:'jupishine',name:'Jupishine',detail:'1 tab · After breakfast',session:'morning',icon:'💊',color:'ic-blue',badge:'b-morning',cKey:'meds30',cTotal:30},
-    {id:'renocia',name:'Renocia Diva',detail:'1 tab · After breakfast'+(isSunday?' · +1 tonight':''),session:'morning',icon:'💊',color:'ic-blue',badge:'b-morning',cKey:'meds30',cTotal:30},
-    {id:'vitd3',name:'Vitamin D3',detail:'1 tab · After breakfast',session:'morning',icon:'☀️',color:'ic-amber',badge:'b-morning',cKey:'meds30',cTotal:30},
-    {id:'vitakind',name:'Vitakind Zit',detail:'1 tab · After breakfast',session:'morning',icon:'💊',color:'ic-blue',badge:'b-morning',cKey:'meds30',cTotal:30},
-    {id:'omega3',name:'Omega-3',detail:'1 tab · After breakfast',session:'morning',icon:'🐟',color:'ic-teal',badge:'b-morning',cKey:'meds30',cTotal:30},
-    {id:'glutone',name:'Glutone (Niacinamide)',detail:'Apply to face · After meds',session:'morning',icon:'✨',color:'ic-rose',badge:'b-morning'},
-    {id:'flawlizo',name:'Flawlizo Acne Gel',detail:'Apply to face · After Glutone',session:'morning',icon:'🧴',color:'ic-rose',badge:'b-morning'},
-    {id:'rivela',name:'Rivela Sunscreen',detail:'Apply generously · Last AM step',session:'morning',icon:'🌞',color:'ic-amber',badge:'b-morning'},
-    {id:'glibest-am',name:'Glibest Lotion (back)',detail:'Apply to back · Morning',session:'morning',icon:'🤍',color:'ic-purple',badge:'b-morning'},
-    {id:'tfaze',name:'T Faze',detail:'1 tab · After lunch',session:'afternoon',icon:'💊',color:'ic-blue',badge:'b-noon'},
-    ...(clInfo&&clInfo.active?[{id:'clingen',name:'Clingen Forte',detail:'1 tab · Before bed',session:'night',icon:'💊',color:'ic-blue',badge:'b-night',cKey:'clingen',cTotal:7}]:[]),
-    {id:'lactofy',name:'Lactofy',detail:'1 tab · Before bed',session:'night',icon:'💊',color:'ic-green',badge:'b-night',cKey:'meds30',cTotal:30},
-    ...(isSunday?[{id:'renocia-night',name:'Renocia Diva (Sunday)',detail:'1 tab · Extra Sunday night dose',session:'night',icon:'💊',color:'ic-blue',badge:'b-weekly',xtra:'<span class="tonight-pill" style="background:var(--purple-dim);color:var(--purple)">Sunday dose</span>'}]:[]),
-    {id:'glibest-pm',name:'Glibest Lotion (back)',detail:'Apply to back · Bedtime',session:'night',icon:'🤍',color:'ic-purple',badge:'b-night'},
-    {id:'theara',name:'Theara Hair Serum',detail:'5 sprays on scalp · Bedtime',session:'night',icon:'💆',color:'ic-teal',badge:'b-night'},
-    serum==='brilante'
-      ?{id:'brilante',name:'Brilante Max Serum',detail:"Apply to face · Tonight's pick",session:'night',icon:'🌙',color:'ic-rose',badge:'b-night',xtra:'<span class="tonight-pill" style="background:var(--rose-dim);color:var(--rose)">Alternating — Brilante</span>'}
-      :{id:'juveskin',name:'Juveskin (Retinol)',detail:"Apply to face · Tonight's pick",session:'night',icon:'🌙',color:'ic-purple',badge:'b-weekly',xtra:'<span class="tonight-pill" style="background:var(--purple-dim);color:var(--purple)">Alternating — Juveskin</span>'},
-    ...(canInfo&&canInfo.active
-      ?[{id:'canesten',name:'Canesten Cream',detail:'Apply as needed · 7-day course',session:'asneeded',icon:'🧴',color:'ic-teal',badge:'b-asneeded',cKey:'canesten',cTotal:7,noCount:true}]
-      :[{id:'canesten-inactive',name:'Canesten Cream',detail:'Set start date in Settings when needed',session:'asneeded',icon:'🧴',color:'ic-teal',badge:'b-asneeded',noCount:true}]),
-  ];
+function badgeForItem(it){
+  if(it.frequency==='weekly')return 'b-weekly';
+  if(it.session==='morning')return 'b-morning';
+  if(it.session==='afternoon')return 'b-noon';
+  if(it.session==='night')return 'b-night';
+  return 'b-asneeded';
 }
 
 function calcStreak(){
@@ -492,128 +755,176 @@ function calcBestStreak(){
   return best;
 }
 
-
-// ── Celebration system ──
+/* --------------------- CELEBRATION (context-aware rotating copy) --------------------- */
 const CELEB_MESSAGES = {
-  day: [
-    { emoji:"🧬", title:"Adherence: 100%", msg:"Your cells are literally applauding right now. Mitochondria are the powerhouse of the cell, and today YOU were the powerhouse of your routine. Proud of you, Nilomi." },
-    { emoji:"💉", title:"Dose delivered.", msg:"All medications administered on schedule. Your future self is writing you a thank-you note as we speak. Pharmacokinetics never looked so good." },
-    { emoji:"🌿", title:"Full routine, zero excuses.", msg:"Doctors call it compliance. We call it you being an absolute legend. Your gut, skin, and soul are all singing." },
-    { emoji:"🔬", title:"Sample result: positive.", msg:"Positive for dedication. Positive for self-love. Positive for absolutely crushing it today. Clinical trial results: Nilomi = top performer." },
-    { emoji:"🫀", title:"Heart rate: proud.", msg:"Every tab ticked, every drop applied. Your hypothalamus is releasing feel-good hormones right now — and you earned every single one of them." },
-    { emoji:"✨", title:"Glowing — literally.", msg:"Glutone done. Sunscreen done. Retinol done. Your skin collagen is out here living its best life because of YOU. Dermatologist approved." },
-    { emoji:"🏆", title:"Today's MVP: you.", msg:"Not a single item skipped. This is what discipline looks like — quiet, consistent, and completely underrated. We see you." },
-    { emoji:"🌙", title:"Night complete.", msg:"Meds taken, serums applied, hair fed. You've done everything your body asked of you today. Now rest — you've earned it." },
-    { emoji:"💊", title:"All pills: accounted for.", msg:"The pharmacist is proud. Your liver is grateful. Your skin is hydrated. You, Nilomi, are officially a wellness icon." },
-    { emoji:"🧪", title:"Experiment: successful.", msg:"Today's hypothesis: can Nilomi complete the full routine? Results: a resounding, spectacular YES. P-value: basically zero doubt." },
-    { emoji:"🫁", title:"Deep breath.", msg:"Inhale confidence. Exhale every reason you thought you might skip something today. Full routine done. Your body thanks you." },
-    { emoji:"🩺", title:"Dr. Nilomi, reporting.", msg:"Self-prescribed: consistency. Self-administered: excellence. Prognosis: absolutely thriving. No follow-up needed — you've got this." },
-  ],
+  day: {
+    morning: [
+      { emoji:"🌅", title:"Morning, sorted.", msg:"Before most people have even picked a coffee order, your entire routine is done. That's unreal." },
+      { emoji:"☕", title:"Ahead of the curve.", msg:"Meds in, serums on, sunscreen glowing. You just front-loaded your self-care for the whole day." },
+      { emoji:"🌞", title:"Sun's up, you're up.", msg:"The whole morning protocol — done. You didn't snooze discipline and it's paying off." },
+      { emoji:"⚡", title:"Fastest morning yet.", msg:"Caffeine doesn't work this fast. But apparently you do." },
+    ],
+    afternoon: [
+      { emoji:"🌤", title:"Midday check — clear.", msg:"Most routines die at 2pm. Yours just got stronger." },
+      { emoji:"🧭", title:"Back on track.", msg:"Afternoon dose delivered. The day didn't derail you — you steered it." },
+      { emoji:"☀️", title:"Lunchtime warrior.", msg:"The hardest session for most people. You just handled it like it was nothing." },
+    ],
+    night: [
+      { emoji:"🌙", title:"Night complete.", msg:"Meds taken, serums applied. Now rest — you earned the sleep." },
+      { emoji:"🌌", title:"Shut the day down.", msg:"Full routine, final session, end of day. Exhale. You did it all." },
+      { emoji:"⭐", title:"Stars aligned.", msg:"Everything in, everything on. Go glow in your sleep." },
+      { emoji:"🕯", title:"Wind-down complete.", msg:"You closed the day the same way you started it — consistent." },
+    ],
+    general: [
+      { emoji:"🧬", title:"Adherence: 100%", msg:"Your cells are literally applauding right now. Mitochondria are the powerhouse of the cell — today YOU were the powerhouse of your routine." },
+      { emoji:"💉", title:"Dose delivered.", msg:"All medications administered on schedule. Your future self is writing you a thank-you note." },
+      { emoji:"🌿", title:"Full routine, zero excuses.", msg:"Doctors call it compliance. We call it you being an absolute legend." },
+      { emoji:"🔬", title:"Sample result: positive.", msg:"Positive for dedication. Positive for self-love. Positive for absolutely crushing it today." },
+      { emoji:"🫀", title:"Heart rate: proud.", msg:"Every tab ticked, every drop applied. You earned every single feel-good hormone in your bloodstream." },
+      { emoji:"✨", title:"Glowing — literally.", msg:"Your skin is out here living its best life because of YOU." },
+      { emoji:"🏆", title:"Today's MVP: you.", msg:"Not a single item skipped. This is what discipline looks like." },
+      { emoji:"💊", title:"All pills: accounted for.", msg:"The pharmacist is proud. Your liver is grateful. Your skin is hydrated." },
+      { emoji:"🧪", title:"Experiment: successful.", msg:"Hypothesis: can you complete the full routine today? Results: a resounding YES." },
+      { emoji:"🫁", title:"Deep breath.", msg:"Full routine done. Your body thanks you in chemistry." },
+      { emoji:"🩺", title:"Dr. You, reporting.", msg:"Self-prescribed: consistency. Self-administered: excellence. Prognosis: thriving." },
+      { emoji:"🌱", title:"Still growing.", msg:"Another day compounded. Tiny habits, gigantic payoff." },
+      { emoji:"🫧", title:"Squeaky clean.", msg:"Every product applied, every dose taken. You're basically a self-cleaning oven for wellness." },
+      { emoji:"📈", title:"Trend: up and to the right.", msg:"Another green day on your adherence chart. Your doctor would fist-pump." },
+      { emoji:"🎯", title:"Nothing missed today.", msg:"Focus over vibes, always. Today was all focus." },
+    ],
+    weekend: [
+      { emoji:"🏝", title:"Weekend warrior.", msg:"Routines usually collapse on Saturdays. Not yours." },
+      { emoji:"🛋", title:"Couch-day champion.", msg:"Even on chill days, you didn't skip a beat. That's next-level." },
+    ],
+    monday: [
+      { emoji:"🚀", title:"Monday: launched.", msg:"A Monday, fully compliant. The rest of the week doesn't stand a chance." },
+    ]
+  },
   week: [
-    { emoji:"🎯", title:"7 days. Zero missed.", msg:"A full week of showing up for yourself. That's not luck — that's a habit forming. Neurologically speaking, your basal ganglia are literally rewiring right now. Keep going." },
-    { emoji:"🏅", title:"Week one, conquered.", msg:"7 days of meds, skincare, and serums. Your consistency is building something real. Collagen synthesis takes weeks — you're already ahead of it." },
-    { emoji:"🌊", title:"The streak is real.", msg:"One week in and your body is starting to feel the difference. Vitamin D levels rising. Skin barrier strengthening. Gut microbiome: thriving. You did that." },
-    { emoji:"💫", title:"Weekly compliance: 100%", msg:"Clinical studies show it takes 21 days to build a habit. You're a third of the way there, Nilomi, and you haven't wobbled once. Statistically impressive." },
-    { emoji:"🌸", title:"Bloom in progress.", msg:"A week of Glutone, a week of retinol, a week of Omega-3s. Your skin is in the middle of becoming something beautiful. Stay with it." },
-    { emoji:"⚡", title:"7-day streak unlocked.", msg:"This is the part where your skin starts noticing. Your cells have had a full week of reinforcements. The glow is coming — trust the process and trust yourself." },
-    { emoji:"🧠", title:"Prefrontal cortex: impressed.", msg:"Decision fatigue is real, and you fought it every single day this week. That takes executive function AND heart. You have both in abundance." },
+    { emoji:"🎯", title:"7 days. Zero missed.", msg:"A full week of showing up. Your basal ganglia are literally rewiring right now — this is what habit formation feels like." },
+    { emoji:"🏅", title:"Week one, conquered.", msg:"7 days of meds and skincare. Your consistency is building something real and measurable." },
+    { emoji:"🌊", title:"The streak is real.", msg:"One week in and your body is starting to feel the difference." },
+    { emoji:"💫", title:"Weekly compliance: 100%", msg:"It takes 21 days to build a habit. You're a third of the way there." },
+    { emoji:"🌸", title:"Bloom in progress.", msg:"A week of care. Your skin is in the middle of becoming something beautiful." },
+    { emoji:"⚡", title:"7-day streak unlocked.", msg:"This is the part where the mirror starts agreeing with you." },
+    { emoji:"🧠", title:"Prefrontal cortex: impressed.", msg:"Decision fatigue is real, and you fought it every single day this week." },
+    { emoji:"🔗", title:"Seven for seven.", msg:"Every link in the chain is intact. Don't break it now." },
+    { emoji:"🧘", title:"Week flowed.", msg:"No drama, just discipline. This is what showing up looks like multiplied by 7." },
+    { emoji:"📊", title:"100% week.", msg:"You just created a perfect row on your adherence spreadsheet. That's hard." },
+    { emoji:"🎼", title:"In rhythm.", msg:"Seven days, zero skipped beats. You've found the tempo." },
+    { emoji:"🦴", title:"Solid foundation.", msg:"A full week compounds into weeks, which compound into months. Keep stacking." },
+    { emoji:"🔥", title:"Momentum: real.", msg:"Seven days of YES. The hardest part is starting — you're past that." },
+    { emoji:"🌻", title:"Seven sunrises in a row.", msg:"You showed up for yourself every single morning this week." },
+    { emoji:"🛡", title:"Armoured.", msg:"A week of consistent care is a shield against the version of you that used to forget." }
   ],
   month: [
-    { emoji:"🌟", title:"30 days. You actually did it.", msg:"A full month of showing up for yourself, every single day. That is not small. That's the kind of thing people talk about in therapy as a breakthrough. You built this." },
-    { emoji:"🦋", title:"30-day transformation.", msg:"Month one of your meds is complete. Your body has had 30 days of consistent chemistry — Vitamin D stored, Omega-3s integrated, skin barrier rebuilt from the inside out. Nilomi, you've changed." },
-    { emoji:"👑", title:"Queen of compliance.", msg:"Doctors dream of patients like you. 30 days. Every pill, every serum, every spritz of Theara. Your dedication is the stuff of medical case studies — the good kind." },
-    { emoji:"🎊", title:"1 month streak. This is history.", msg:"You've officially graduated from trying to this is just who I am now. Habit formed. Routine locked in. Neuroplasticity working in your favour. We are SO proud of you." },
-    { emoji:"🌺", title:"Sustained. Consistent. Glowing.", msg:"Month one done. Your collagen is up, your gut flora is balanced, your Vitamin D receptors are saturated with goodness. This is what 30 days of self-love looks like, Nilomi." },
-    { emoji:"🔥", title:"30-day streak. Untouchable.", msg:"You didn't miss a single day. Not one. That is rarer than you know. Most people quit by day 3. You're still here on day 30, fully medicated and fully radiant." },
-    { emoji:"💎", title:"Diamond discipline.", msg:"A month of Jupishine, Lactofy, D3, Vitakind, Omega-3 — taken without fail. Your body is different now. Better. Stronger. And you made that happen, all by yourself." },
-  ]
+    { emoji:"🌟", title:"30 days. You actually did it.", msg:"A full month of showing up for yourself, every single day." },
+    { emoji:"🦋", title:"30-day transformation.", msg:"Month one complete. Your body has had 30 days of consistent chemistry — this is where real change lives." },
+    { emoji:"👑", title:"Queen of compliance.", msg:"Doctors dream of patients like you." },
+    { emoji:"🎊", title:"1 month streak. This is history.", msg:"You've officially graduated from trying to this is just who I am now." },
+    { emoji:"🌺", title:"Sustained. Consistent. Glowing.", msg:"This is what 30 days of self-love looks like." },
+    { emoji:"🔥", title:"30-day streak. Untouchable.", msg:"You didn't miss a single day. Not one. That's not luck — that's identity." },
+    { emoji:"💎", title:"Diamond discipline.", msg:"Your body is different now. Better. Stronger. And it knows." },
+    { emoji:"🏛", title:"The habit is built.", msg:"Thirty days in. Research says you're past the hardest part — this is autopilot territory now." },
+    { emoji:"🧭", title:"True north.", msg:"For a full month you pointed at the same goal and didn't flinch. That's rare." },
+    { emoji:"🌍", title:"Orbit complete.", msg:"The Moon went around the Earth while you went around your routine. Both of you: perfect." },
+    { emoji:"📜", title:"Chapter one, done.", msg:"You just wrote 30 pages of a book called 'The Year I Showed Up For Myself'." },
+    { emoji:"🪴", title:"Rooted.", msg:"A month of daily care. The habits have roots now — they don't need willpower anymore." },
+    { emoji:"💼", title:"Career-level consistency.", msg:"This is the kind of discipline that changes entire lives. And it's already yours." },
+    { emoji:"🧗", title:"Summit: reached.", msg:"Thirty days up the mountain. The view from here is glowing skin and calm blood panels." },
+    { emoji:"🫶", title:"One month of showing up.", msg:"Thirty mornings of choosing yourself. Thirty nights of the same. Unreasonable kindness — to you, from you." }
+  ],
+  milestone: {
+    // Keyed by exact streak day for bonus surprise
+    3:  { emoji:"🌱", title:"Day 3 — seed planted.", msg:"Research says the third day is the hardest. You just cleared it." },
+    10: { emoji:"🔟", title:"Double digits.", msg:"Ten days. You've officially outlasted most New Year's resolutions." },
+    14: { emoji:"📅", title:"Two whole weeks.", msg:"Fourteen days. The body has started to rewire. The mirror is starting to notice." },
+    21: { emoji:"🧬", title:"21 days — the textbook milestone.", msg:"Some studies say 21 is when a habit becomes automatic. Welcome to autopilot." },
+    50: { emoji:"🏁", title:"Halfway to 100.", msg:"Fifty days without a miss. That's wild discipline." },
+    60: { emoji:"🌕", title:"Two full moons of showing up.", msg:"Sixty days, zero missed. Biology and chemistry are definitely on your side now." },
+    100:{ emoji:"💯", title:"ONE HUNDRED DAYS.", msg:"You just did the thing almost no one does. Frame this day." },
+    200:{ emoji:"🌠", title:"200 days. Mythic.", msg:"This is where your body permanently remembers." },
+    365:{ emoji:"🎂", title:"A full year. Every day.", msg:"You just completed something most people never even start. Tell everyone." }
+  }
 };
 
-let lastCelebTier = null;
-let lastCelebDay = null;
-let usedDayIdxs = [], usedWeekIdxs = [], usedMonthIdxs = [];
-
-function pickRandom(arr, usedArr) {
-  // Reset if all used
-  if (usedArr.length >= arr.length) usedArr.length = 0;
-  let idx;
-  do { idx = Math.floor(Math.random() * arr.length); } while (usedArr.includes(idx));
-  usedArr.push(idx);
+let celebHistory=lsGet('celebHistory', {day:[],week:[],month:[]});
+function pickRandom(arr, tier){
+  let used=celebHistory[tier]||[];
+  if(used.length>=Math.floor(arr.length*0.7))used=[]; // reset when we've seen 70%
+  let idx;let guard=0;
+  do{idx=Math.floor(Math.random()*arr.length);guard++;}while(used.includes(idx)&&guard<20);
+  used.push(idx);celebHistory[tier]=used;lsSet('celebHistory', celebHistory);
   return arr[idx];
 }
-
-function spawnParticles() {
-  const container = document.getElementById('celebParticles');
-  container.innerHTML = '';
-  const colors = ['#4ade80','#86efac','#fbbf24','#fb7185','#a78bfa','#2dd4bf','#60a5fa','#fde68a'];
-  for (let i = 0; i < 28; i++) {
-    const p = document.createElement('div');
-    p.className = 'celeb-particle';
-    p.style.cssText = `left:${Math.random()*100}%;background:${colors[Math.floor(Math.random()*colors.length)]};width:${6+Math.random()*6}px;height:${6+Math.random()*6}px;border-radius:${Math.random()>.5?'50%':'3px'};animation-duration:${1.5+Math.random()*2}s;animation-delay:${Math.random()*.6}s`;
-    container.appendChild(p);
+function pickDayMessage(){
+  const pool=CELEB_MESSAGES.day;
+  const h=new Date().getHours();
+  const dow=new Date().getDay();
+  const chooseFrom=[];
+  // Weight contextual pools higher
+  if(h<12)chooseFrom.push(...pool.morning, ...pool.morning);
+  else if(h<18)chooseFrom.push(...pool.afternoon, ...pool.afternoon);
+  else chooseFrom.push(...pool.night, ...pool.night);
+  if(dow===0||dow===6)chooseFrom.push(...pool.weekend);
+  if(dow===1)chooseFrom.push(...pool.monday);
+  chooseFrom.push(...pool.general);
+  // Filter out last seen
+  const lastKey=lsGet('lastCelebDayKey', null);
+  const filtered=chooseFrom.filter(m=>m.title!==lastKey);
+  const finalPool=filtered.length?filtered:chooseFrom;
+  const pick=finalPool[Math.floor(Math.random()*finalPool.length)];
+  lsSet('lastCelebDayKey', pick.title);
+  return pick;
+}
+function spawnParticles(){
+  const container=document.getElementById('celebParticles');container.innerHTML='';
+  const colors=['#4ade80','#86efac','#fbbf24','#fb7185','#a78bfa','#2dd4bf','#60a5fa','#fde68a'];
+  for(let i=0;i<28;i++){const p=document.createElement('div');p.className='celeb-particle';p.style.cssText=`left:${Math.random()*100}%;background:${colors[Math.floor(Math.random()*colors.length)]};width:${6+Math.random()*6}px;height:${6+Math.random()*6}px;border-radius:${Math.random()>.5?'50%':'3px'};animation-duration:${1.5+Math.random()*2}s;animation-delay:${Math.random()*.6}s`;container.appendChild(p);}
+}
+function showCelebration(tier){
+  const todayKey=todayStr+'-'+tier;const shown=lsGet('celebShown', {});
+  if(shown[todayKey])return;shown[todayKey]=true;lsSet('celebShown', shown);bumpAndSync();
+  let msg;
+  if(tier==='milestone'){
+    const streak=calcStreak();msg=CELEB_MESSAGES.milestone[streak];
+    if(!msg)msg=pickRandom(CELEB_MESSAGES.day.general, 'day');
+  } else if(tier==='day'){msg=pickDayMessage();}
+  else {msg=pickRandom(CELEB_MESSAGES[tier], tier);}
+  const streak=calcStreak();
+  const tierLabels={day:'Day complete ✓',week:'7-day streak 🔥',month:'30-day streak 👑',milestone:`${streak}-day milestone ⭐`};
+  const tierClasses={day:'ct-day',week:'ct-week',month:'ct-month',milestone:'ct-month'};
+  document.getElementById('celebTier').textContent=tierLabels[tier];
+  document.getElementById('celebTier').className='celeb-tier '+tierClasses[tier];
+  document.getElementById('celebEmoji').textContent=msg.emoji;
+  document.getElementById('celebTitle').textContent=msg.title;
+  document.getElementById('celebMsg').textContent=msg.msg;
+  document.getElementById('celebStat').innerHTML=`<span class="celeb-stat-num">${streak}</span> day streak`;
+  spawnParticles();document.getElementById('celebOverlay').classList.add('open');document.body.style.overflow='hidden';
+}
+function closeCelebration(){document.getElementById('celebOverlay').classList.remove('open');document.body.style.overflow='';}
+function checkCelebrations(streak){
+  const countableAll=getItemsForToday().filter(i=>!i.noCount);
+  const total=countableAll.length;
+  const dc=countableAll.filter(i=>done.has(i.id)).length;
+  if(dc===total&&total>0){
+    if(streak>0 && CELEB_MESSAGES.milestone[streak])setTimeout(()=>showCelebration('milestone'),400);
+    else if(streak>0&&streak%30===0)setTimeout(()=>showCelebration('month'),400);
+    else if(streak>0&&streak%7===0)setTimeout(()=>showCelebration('week'),400);
+    else setTimeout(()=>showCelebration('day'),400);
   }
 }
 
-function showCelebration(tier) {
-  // Don't show same tier twice in same day
-  const todayKey = todayStr + '-' + tier;
-  const shown = JSON.parse(localStorage.getItem('celebShown') || '{}');
-  if (shown[todayKey]) return;
-  shown[todayKey] = true;
-  localStorage.setItem('celebShown', JSON.stringify(shown));
-
-  const msgs = CELEB_MESSAGES[tier];
-  const usedArr = tier==='day'?usedDayIdxs:tier==='week'?usedWeekIdxs:usedMonthIdxs;
-  const msg = pickRandom(msgs, usedArr);
-
-  const tierLabels = { day:'Day complete ✓', week:'7-day streak 🔥', month:'30-day streak 👑' };
-  const tierClasses = { day:'ct-day', week:'ct-week', month:'ct-month' };
-  const streak = calcStreak();
-  const statLabels = { day:`${streak} day streak`, week:`${streak} days strong`, month:`${streak} days — elite` };
-
-  document.getElementById('celebTier').textContent = tierLabels[tier];
-  document.getElementById('celebTier').className = 'celeb-tier ' + tierClasses[tier];
-  document.getElementById('celebEmoji').textContent = msg.emoji;
-  document.getElementById('celebTitle').textContent = msg.title;
-  document.getElementById('celebMsg').textContent = msg.msg;
-  document.getElementById('celebStat').innerHTML = `<span class="celeb-stat-num">${streak}</span> day streak`;
-
-  spawnParticles();
-  document.getElementById('celebOverlay').classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
-
-function closeCelebration() {
-  document.getElementById('celebOverlay').classList.remove('open');
-  document.body.style.overflow = '';
-}
-
-function checkCelebrations(streak) {
-  // Day complete — fires when all items ticked
-  const countableAll = getItems().filter(i => !i.noCount);
-  const total = countableAll.length;
-  const dc = countableAll.filter(i => done.has(i.id)).length;
-  if (dc === total && total > 0) {
-    // Check milestones — month first (most impressive), then week, then day
-    if (streak > 0 && streak % 30 === 0) {
-      setTimeout(() => showCelebration('month'), 400);
-    } else if (streak > 0 && streak % 7 === 0) {
-      setTimeout(() => showCelebration('week'), 400);
-    } else {
-      setTimeout(() => showCelebration('day'), 400);
-    }
-  }
-}
-
+/* --------------------- TOGGLE & NOTES --------------------- */
 function toggle(id){if(done.has(id))done.delete(id);else done.add(id);saveState();render();}
-
 let activeNoteId=null,pressTimer=null;
 function openNoteModal(id,name){activeNoteId=id;document.getElementById('noteModalTitle').textContent=name;document.getElementById('noteText').value=notes[id]||'';document.getElementById('noteModalBg').classList.add('open');}
 function closeNoteModal(){document.getElementById('noteModalBg').classList.remove('open');activeNoteId=null;}
-function saveNote(){if(!activeNoteId)return;const t=document.getElementById('noteText').value.trim();if(t)notes[activeNoteId]=t;else delete notes[activeNoteId];localStorage.setItem('notes',JSON.stringify(notes));closeNoteModal();render();}
+function saveNote(){if(!activeNoteId)return;const t=document.getElementById('noteText').value.trim();if(t)notes[activeNoteId]=t;else delete notes[activeNoteId];lsSet('notes', notes);bumpAndSync();closeNoteModal();render();}
 document.getElementById('noteModalBg').addEventListener('click',e=>{if(e.target===document.getElementById('noteModalBg'))closeNoteModal();});
 
 const badgeLabels={'b-morning':'AM','b-noon':'Afternoon','b-night':'PM','b-asneeded':'As needed','b-weekly':'Weekly'};
+
 function buildCard(item,delay){
   const div=document.createElement('div');
   const isDone=done.has(item.id);
@@ -623,47 +934,68 @@ function buildCard(item,delay){
   div.addEventListener('pointerup',()=>clearTimeout(pressTimer));
   div.addEventListener('pointerleave',()=>clearTimeout(pressTimer));
   div.addEventListener('click',()=>toggle(item.id));
-  const c=loadCourses();
-  let extra=item.xtra||'';
-  if(item.cKey&&c[item.cKey]){
-    const info=courseInfo(c[item.cKey],item.cTotal);
+  const courses=loadCourses();
+  let extra='';
+  if(item.courseId && courses[item.courseId]){
+    const info=courseInfo(courses[item.courseId]);
     if(info&&info.active)extra+=`<span class="course-pill ${info.left<=5?'cp-warn':'cp-active'}">Day ${info.day} of ${info.total} · ${info.left} left</span>`;
   }
-  if(notes[item.id])extra+=`<span class="note-snip">📝 ${notes[item.id].slice(0,45)}${notes[item.id].length>45?'…':''}</span>`;
-  div.innerHTML=`<div class="r-icon ${item.color}">${item.icon}</div><div class="r-body"><div class="r-name">${item.name}</div><div class="r-detail">${item.detail}${extra?'<br>'+extra:''}</div></div><div class="r-right"><span class="r-badge ${item.badge}">${badgeLabels[item.badge]||'Now'}</span><div class="check-circle"><svg width="11" height="9" viewBox="0 0 11 9" fill="none"><path d="M1 4.5l3 3 6-6" stroke="#0f1a14" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>`;
+  if(notes[item.id])extra+=`<span class="note-snip">📝 ${escapeHtml(notes[item.id].slice(0,45))}${notes[item.id].length>45?'…':''}</span>`;
+  const badge=badgeForItem(item);
+  div.innerHTML=`<div class="r-icon ${item.color||'ic-blue'}">${item.icon||'💊'}</div><div class="r-body"><div class="r-name">${escapeHtml(item.name)}</div><div class="r-detail">${escapeHtml(item.detail||'')}${extra?'<br>'+extra:''}</div></div><div class="r-right"><span class="r-badge ${badge}">${badgeLabels[badge]||'Now'}</span><div class="check-circle"><svg width="11" height="9" viewBox="0 0 11 9" fill="none"><path d="M1 4.5l3 3 6-6" stroke="#0f1a14" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>`;
   return div;
 }
 
-function renderSkinCal(){
-  const el=document.getElementById('skinCal');
-  const serum=getNightSerum();
-  const days=[];
-  for(let i=6;i>=0;i--){const d=new Date(today);d.setDate(d.getDate()-i);const ds=d.toISOString().slice(0,10);const arr=getArr(ds);days.push({lbl:DAYS_SHORT[d.getDay()],type:arr.includes('juveskin')?'juv':arr.includes('brilante')?'bril':'none',isToday:i===0});}
-  el.innerHTML=`<div class="skin-cal">
-    <div class="skin-cal-lbl">Tonight's serum</div>
-    <div class="serum-today-btns">
-      <button class="serum-today-btn ${serum==='brilante'?'stb-bril':''}" onclick="setSerum('brilante')">
-        <span class="stb-icon">🌙</span>Brilante
-      </button>
-      <button class="serum-today-btn ${serum==='juveskin'?'stb-juv':''}" onclick="setSerum('juveskin')">
-        <span class="stb-icon">🌙</span>Juveskin
-      </button>
-    </div>
-    <div class="skin-cal-lbl" style="margin-top:12px">Last 7 days</div>
-    <div class="skin-week">${days.map(d=>`<div class="skin-day"><div class="skin-day-lbl">${d.lbl}</div><div class="skin-dot ${d.type==='juv'?'sd-juv':d.type==='bril'?'sd-bril':'sd-none'}${d.isToday?' sd-today':''}">${d.type==='juv'?'J':d.type==='bril'?'B':'·'}</div></div>`).join('')}</div>
-  </div>`;
-}
+function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
+/* --------------------- ALT GROUPS UI --------------------- */
+function renderAltGroupPickers(){
+  const host=document.getElementById('altGroupsHost');
+  const groups=loadAltGroups();
+  const items=loadItems();
+  const keys=Object.keys(groups);
+  if(keys.length===0){host.innerHTML='';return;}
+  host.innerHTML=keys.map(gid=>{
+    const g=groups[gid];
+    const btns=(g.itemIds||[]).map(id=>{
+      const it=items.find(i=>i.id===id);
+      if(!it)return '';
+      const active=g.currentPick===id;
+      return `<button class="serum-today-btn${active?' active':''}" onclick="pickAlt('${gid}','${id}')"><span class="stb-icon">${it.icon||'🌙'}</span>${escapeHtml(it.name)}</button>`;
+    }).join('');
+    const days=[];
+    for(let i=6;i>=0;i--){const d=new Date(today);d.setDate(d.getDate()-i);const ds=d.toISOString().slice(0,10);const arr=getArr(ds);
+      let picked=null;for(const id of (g.itemIds||[])){if(arr.includes(id)){picked=id;break;}}
+      days.push({lbl:DAYS_SHORT[d.getDay()], picked, isToday:i===0});}
+    const week=`<div class="skin-cal-lbl" style="margin-top:12px">Last 7 days</div><div class="skin-week">${days.map(d=>{
+      const it=d.picked?items.find(i=>i.id===d.picked):null;
+      const letter=it?(it.name[0]||'·'):'·';
+      return `<div class="skin-day"><div class="skin-day-lbl">${d.lbl}</div><div class="skin-dot ${d.picked?'sd-on':''}${d.isToday?' sd-today':''}">${letter}</div></div>`;
+    }).join('')}</div>`;
+    return `<div class="skin-cal"><div class="skin-cal-lbl">${escapeHtml(g.label||'Pick one')}</div><div class="serum-today-btns" style="grid-template-columns:repeat(${(g.itemIds||[]).length},1fr)">${btns}</div>${week}</div>`;
+  }).join('');
+}
+function pickAlt(gid, itemId){const g=loadAltGroups();if(!g[gid])return;g[gid].currentPick=itemId;saveAltGroups(g);render();}
+
+/* --------------------- REFILLS / STATS / RENDER --------------------- */
 function renderRefillAlerts(){
-  const el=document.getElementById('refillAlerts');const c=loadCourses();const alerts=[];
-  const chk=(key,name,days)=>{const l=courseDaysLeft(c[key],days);if(l!==null&&l<=5&&l>0)alerts.push({name,l});};
-  chk('meds30','Jupishine · Renocia · Vit D3 · Vitakind · Omega-3 · Lactofy',30);chk('clingen','Clingen Forte',7);chk('canesten','Canesten Cream',7);
-  el.innerHTML=alerts.length?`<div class="refill-banner"><div class="refill-title">⚠ Refill soon</div>${alerts.map(a=>`<div class="refill-item"><span>${a.name}</span><span class="refill-days">${a.l} day${a.l>1?'s':''} left</span></div>`).join('')}</div>`:'';
+  const el=document.getElementById('refillAlerts');
+  const courses=loadCourses();const items=loadItems();
+  const alerts=[];
+  for(const [cid,c] of Object.entries(courses)){
+    const l=courseDaysLeft(c);
+    if(l!==null && l<=5 && l>0){
+      const users=items.filter(i=>i.courseId===cid).map(i=>i.name);
+      const label=users.length>0?users.join(' · '):c.name;
+      alerts.push({name:label, l});
+    }
+  }
+  el.innerHTML=alerts.length?`<div class="refill-banner"><div class="refill-title">⚠ Refill soon</div>${alerts.map(a=>`<div class="refill-item"><span>${escapeHtml(a.name)}</span><span class="refill-days">${a.l} day${a.l>1?'s':''} left</span></div>`).join('')}</div>`:'';
 }
 
 function renderStats(){
   const streak=calcStreak();const best=calcBestStreak();
-  const ITEMS=getItems();const total=ITEMS.length||1;
+  const ITEMS=getItemsForToday().filter(i=>!i.noCount);const total=ITEMS.length||1;
   let dc=0,daysWithData=0;const d=new Date(today);
   for(let i=0;i<today.getDate();i++){if(d<APP_START)break;const arr=getArr(d.toISOString().slice(0,10));if(arr.length>0){daysWithData++;dc+=arr.length;}d.setDate(d.getDate()-1);}
   const pct=daysWithData>0?Math.round((dc/(daysWithData*total))*100):0;
@@ -673,500 +1005,890 @@ function renderStats(){
 }
 
 function render(){
-  const ITEMS=getItems();const sessions={morning:[],afternoon:[],night:[],asneeded:[]};
-  ITEMS.forEach(it=>sessions[it.session].push(it));
+  const ITEMS=getItemsForToday();const sessions={morning:[],afternoon:[],night:[],asneeded:[]};
+  ITEMS.forEach(it=>{if(sessions[it.session])sessions[it.session].push(it);});
   ['morning','afternoon','night','asneeded'].forEach(s=>{
     const cap=s[0].toUpperCase()+s.slice(1);
     const list=document.getElementById('list'+cap);const cnt=document.getElementById('cnt'+cap);
     if(!list)return;list.innerHTML='';
-    const items=sessions[s];
-    const countable=items.filter(i=>!i.noCount);
+    const its=sessions[s];
+    const countable=its.filter(i=>!i.noCount);
     const dc=countable.filter(i=>done.has(i.id)).length;
     if(cnt)cnt.textContent=dc+'/'+countable.length;
-    items.forEach((it,idx)=>list.appendChild(buildCard(it,idx*35)));
+    its.forEach((it,idx)=>list.appendChild(buildCard(it,idx*35)));
   });
   const countableAll=ITEMS.filter(i=>!i.noCount);
   const total=countableAll.length,dc=countableAll.filter(i=>done.has(i.id)).length,pct=total>0?dc/total:0;
   document.getElementById('ringFill').style.strokeDashoffset=194.8*(1-pct);
   document.getElementById('ringNum').textContent=dc;
-  document.getElementById('progTitle').textContent=dc===total?'All done! 🌿':"Today's routine";
-  document.getElementById('progSub').textContent=dc===total?'You\'re incredible, Nilomi':`${total-dc} remaining`;
-  document.getElementById('allDone').style.display=dc===total?'block':'none';
-  renderSkinCal();renderRefillAlerts();renderStats();
+  document.getElementById('progTitle').textContent=dc===total&&total>0?'All done! 🌿':"Today's routine";
+  document.getElementById('progSub').textContent=total===0?'No items yet — add some in Settings':(dc===total?"You're incredible":`${total-dc} remaining`);
+  document.getElementById('allDone').style.display=(dc===total&&total>0)?'block':'none';
+  renderAltGroupPickers();renderRefillAlerts();renderStats();
   checkCelebrations(calcStreak());
-
 }
 
-// ─ History ─
+/* --------------------- HISTORY --------------------- */
 let viewMonth=new Date(APP_START.getFullYear(),APP_START.getMonth(),1);
 let selectedDay=null;
 let missedFilter='week';
 
 function changeMonth(dir){
   const next=new Date(viewMonth.getFullYear(),viewMonth.getMonth()+dir,1);
-  // Don't go before APP_START month
   if(next<new Date(APP_START.getFullYear(),APP_START.getMonth(),1))return;
-  // Don't go beyond current month
   if(next>new Date(today.getFullYear(),today.getMonth(),1))return;
   viewMonth=next;renderMonthCal();
 }
-
 function renderMonthCal(){
   const yr=viewMonth.getFullYear(),mo=viewMonth.getMonth();
   document.getElementById('monthLabel').textContent=MONTHS[mo]+' '+yr;
   document.getElementById('calDow').innerHTML=['S','M','T','W','T','F','S'].map(d=>`<div class="cal-dow-cell">${d}</div>`).join('');
   const firstDay=new Date(yr,mo,1).getDay();
   const daysInMonth=new Date(yr,mo+1,0).getDate();
-  const ITEMS=getItems();const countable=ITEMS.filter(i=>!i.noCount);const total=countable.length||1;
+  const ITEMS=getItemsForToday().filter(i=>!i.noCount);const total=ITEMS.length||1;
   let cells='';
   for(let i=0;i<firstDay;i++)cells+='<div class="cal-cell cc-empty"></div>';
   for(let d=1;d<=daysInMonth;d++){
     const ds=`${yr}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const cellDate=new Date(yr,mo,d);
-    const isFuture=cellDate>today;
-    const isBeforeStart=cellDate<APP_START;
-    const isToday=ds===todayStr;
-    const isStart=ds===APP_START_STR;
-    const isSel=ds===selectedDay;
-    if(isFuture||isBeforeStart){
-      cells+=`<div class="cal-cell cc-future" title="${isBeforeStart?'Before app start':''}">${d}</div>`;
-    } else {
+    const isFuture=cellDate>today;const isBeforeStart=cellDate<APP_START;const isToday=ds===todayStr;const isSel=ds===selectedDay;
+    if(isFuture||isBeforeStart){cells+=`<div class="cal-cell cc-future">${d}</div>`;}
+    else{
       const arr=getArr(ds);
       const cls=arr.length===0?'cc-none':arr.length/total>=0.9?'cc-full':'cc-partial';
-      const startMark=isStart?' title="App started"':'';
-      cells+=`<div class="cal-cell ${cls}${isToday?' cc-today':''}${isSel?' cc-selected':''}${isStart?' cc-start':''}"${startMark} onclick="showDayDetail('${ds}',${d})">${d}</div>`;
+      cells+=`<div class="cal-cell ${cls}${isToday?' cc-today':''}${isSel?' cc-selected':''}" onclick="showDayDetail('${ds}',${d})">${d}</div>`;
     }
   }
   document.getElementById('calDays').innerHTML=cells;
 }
-
 function showDayDetail(ds,d){
   selectedDay=ds;renderMonthCal();
   const arr=getArr(ds);
-  const ITEMS=getItems().filter(i=>!i.noCount);
+  const ITEMS=getItemsForToday().filter(i=>!i.noCount);
   const [yr,mo]=ds.split('-');
   const el=document.getElementById('dayDetail');
   el.className='day-detail open';
   const doneCount=ITEMS.filter(i=>arr.includes(i.id)).length;
-  el.innerHTML=`<div class="day-detail-title">${parseInt(d)} ${MONTHS[parseInt(mo)-1]} — ${doneCount}/${ITEMS.length} done</div>`+ITEMS.map(it=>`<div class="dd-item"><div class="dd-dot ${arr.includes(it.id)?'dd-done':'dd-miss'}"></div><div class="dd-name">${it.name}</div><div class="dd-status">${arr.includes(it.id)?'✓ Done':'Missed'}</div></div>`).join('');
+  el.innerHTML=`<div class="day-detail-title">${parseInt(d)} ${MONTHS[parseInt(mo)-1]} — ${doneCount}/${ITEMS.length} done</div>`+ITEMS.map(it=>`<div class="dd-item"><div class="dd-dot ${arr.includes(it.id)?'dd-done':'dd-miss'}"></div><div class="dd-name">${escapeHtml(it.name)}</div><div class="dd-status">${arr.includes(it.id)?'✓ Done':'Missed'}</div></div>`).join('');
 }
 
 function renderCompliance(){
-  const ITEMS=getItems().filter(i=>!i.noCount);const sessions=['morning','afternoon','night','asneeded'];
+  const ITEMS=getItemsForToday().filter(i=>!i.noCount);
+  const sessionsArr=['morning','afternoon','night','asneeded'];
   const labels={morning:'Morning',afternoon:'Afternoon',night:'Bedtime',asneeded:'As needed'};
   const counts={morning:{d:0,t:0},afternoon:{d:0,t:0},night:{d:0,t:0},asneeded:{d:0,t:0}};
   const d=new Date(today);
   for(let i=0;i<30;i++){
     if(d<APP_START)break;
-    const ds=d.toISOString().slice(0,10);
-    const arr=getArr(ds);
+    const ds=d.toISOString().slice(0,10);const arr=getArr(ds);
     ITEMS.forEach(it=>{counts[it.session].t++;if(arr.includes(it.id))counts[it.session].d++;});
     d.setDate(d.getDate()-1);
   }
-  document.getElementById('complianceWrap').innerHTML='<div class="compliance-title">By session (last 30 days)</div>'+sessions.map(s=>{
+  document.getElementById('complianceWrap').innerHTML='<div class="compliance-title">By session (last 30 days)</div>'+sessionsArr.map(s=>{
     const pct=counts[s].t>0?Math.round((counts[s].d/counts[s].t)*100):0;
     const cls=pct>=80?'good':pct>=50?'mid':'low';
-    return`<div class="comp-row"><div class="comp-label">${labels[s]}</div><div class="comp-bar-bg"><div class="comp-bar-fill ${cls}" style="width:${pct}%"></div></div><div class="comp-pct">${pct}%</div></div>`;
+    return `<div class="comp-row"><div class="comp-label">${labels[s]}</div><div class="comp-bar-bg"><div class="comp-bar-fill ${cls}" style="width:${pct}%"></div></div><div class="comp-pct">${pct}%</div></div>`;
   }).join('');
 }
 
 function setMissedFilter(f,btn){missedFilter=f;document.querySelectorAll('.mf-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderMissedLog();}
-
 function renderMissedLog(){
-  const ITEMS=getItems().filter(i=>!i.noCount);
+  const ITEMS=getItemsForToday().filter(i=>!i.noCount);
   let cutoff=new Date(today);
   if(missedFilter==='week')cutoff.setDate(cutoff.getDate()-7);
   else if(missedFilter==='month')cutoff.setDate(cutoff.getDate()-30);
   else cutoff=new Date(APP_START);
-  // never look before app start
   if(cutoff<APP_START)cutoff=new Date(APP_START);
   const missed=[];const byName={};const d=new Date(today);
   while(d>=cutoff){
-    const ds=d.toISOString().slice(0,10);
-    const arr=getArr(ds);
-    const isToday=ds===todayStr;
-    ITEMS.filter(i=>!i.noCount).forEach(it=>{
-      if(!arr.includes(it.id)){
-        missed.push({name:it.name,date:new Date(d),ds,isToday});
-        if(!byName[it.name])byName[it.name]=0;
-        byName[it.name]++;
-      }
+    const ds=d.toISOString().slice(0,10);const arr=getArr(ds);const isToday=ds===todayStr;
+    ITEMS.forEach(it=>{
+      if(!arr.includes(it.id)){missed.push({name:it.name,date:new Date(d),ds,isToday});byName[it.name]=(byName[it.name]||0)+1;}
     });
     d.setDate(d.getDate()-1);
   }
   const el=document.getElementById('missedList');
   if(!missed.length){el.innerHTML='<div class="empty-state">No missed doses in this period 🎉</div>';return;}
-  el.innerHTML=missed.slice(0,50).sort((a,b)=>b.date-a.date).map(m=>`<div class="missed-item"><div class="missed-item-left"><div class="missed-item-name">${m.name}</div><div class="missed-item-date">${m.isToday?'Today (not yet done)':m.date.toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'})}${byName[m.name]>1?' · '+byName[m.name]+'x total':''}</div></div><span class="missed-badge">${m.isToday?'Pending':'Missed'}</span></div>`).join('');
+  el.innerHTML=missed.slice(0,50).sort((a,b)=>b.date-a.date).map(m=>`<div class="missed-item"><div class="missed-item-left"><div class="missed-item-name">${escapeHtml(m.name)}</div><div class="missed-item-date">${m.isToday?'Today (not yet done)':m.date.toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'})}${byName[m.name]>1?' · '+byName[m.name]+'x total':''}</div></div><span class="missed-badge">${m.isToday?'Pending':'Missed'}</span></div>`).join('');
 }
 
-function buildReportData() {
-  const ITEMS = getItems().filter(i => !i.noCount);
-  const streak = calcStreak();
-  const best = calcBestStreak();
-  const sessions = ['morning','afternoon','night'];
-  const sessionLabels = {morning:'Morning',afternoon:'Afternoon',night:'Bedtime'};
+/* --------------------- EXPORT (Excel + PDF with charts & insights) --------------------- */
+function buildReportData(){
+  const allItems=loadItems().filter(i=>!i.noCount);
+  const streak=calcStreak();const best=calcBestStreak();
+  const sessions=['morning','afternoon','night'];
+  const sessionLabels={morning:'Morning',afternoon:'Afternoon',night:'Bedtime'};
 
-  // Collect last 90 days — always use live done Set for today
-  const days = [];
-  const d = new Date(today);
-  for (let i = 0; i < 90; i++) {
-    if (d < APP_START) break;
-    const ds = d.toISOString().slice(0,10);
-    const arr = getArr(ds);
-    days.push({ ds, arr, date: new Date(d) });
-    d.setDate(d.getDate() - 1);
-  }
-  // Always include today even if nothing ticked yet
-  const activeDays = days.filter(d => d.ds === todayStr || d.arr.length > 0);
+  // 90-day window
+  const days=[];const d=new Date(today);
+  for(let i=0;i<90;i++){if(d<APP_START)break;const ds=d.toISOString().slice(0,10);const arr=getArr(ds);days.push({ds,arr,date:new Date(d),dow:d.getDay()});d.setDate(d.getDate()-1);}
+  const activeDays=days.filter(d=>d.ds===todayStr||d.arr.length>0);
 
-  // Per-item compliance
-  const itemStats = ITEMS.map(it => {
-    const possible = activeDays.length;
-    const done = activeDays.filter(d => d.arr.includes(it.id)).length;
-    const pct = possible > 0 ? Math.round((done / possible) * 100) : 0;
-    return { name: it.name, session: it.session, done, possible, pct };
+  // Per-item stats
+  const itemStats=allItems.map(it=>{
+    const possible=activeDays.length;
+    const done=activeDays.filter(d=>d.arr.includes(it.id)).length;
+    return{id:it.id,name:it.name,session:it.session,icon:it.icon||'💊',done,possible,pct:possible>0?Math.round((done/possible)*100):0};
   });
 
-  // Per-session compliance
-  const sessionStats = {};
-  sessions.forEach(s => {
-    const sItems = ITEMS.filter(i => i.session === s);
-    const possible = activeDays.length * sItems.length;
-    const done = activeDays.reduce((acc, d) => acc + sItems.filter(i => d.arr.includes(i.id)).length, 0);
-    sessionStats[s] = { pct: possible > 0 ? Math.round((done/possible)*100) : 0, done, possible };
+  // Session stats
+  const sessionStats={};
+  sessions.forEach(s=>{
+    const sItems=allItems.filter(i=>i.session===s);
+    const possible=activeDays.length*sItems.length;
+    const done=activeDays.reduce((acc,d)=>acc+sItems.filter(i=>d.arr.includes(i.id)).length,0);
+    sessionStats[s]={pct:possible>0?Math.round((done/possible)*100):0,done,possible};
   });
 
-  // Weekly breakdown (last 4 weeks)
-  const weeks = [];
-  for (let w = 0; w < 4; w++) {
-    const wDays = days.slice(w*7, (w+1)*7);
-    const activW = wDays.filter(d => d.arr.length > 0);
-    const possible = activW.length * ITEMS.length;
-    const done = activW.reduce((acc, d) => acc + ITEMS.filter(i => d.arr.includes(i.id)).length, 0);
-    const pct = possible > 0 ? Math.round((done/possible)*100) : 0;
-    if (wDays.length > 0) {
-      const label = w === 0 ? 'This week' : w === 1 ? 'Last week' : `${w+1} weeks ago`;
-      weeks.push({ label, pct, activeDays: activW.length, totalDays: wDays.length });
-    }
+  // Weekly breakdown (last 12 weeks)
+  const weeks=[];
+  for(let w=0;w<12;w++){
+    const wDays=days.slice(w*7,(w+1)*7);if(wDays.length===0)break;
+    const activW=wDays.filter(d=>d.arr.length>0);
+    const possible=activW.length*allItems.length;
+    const done=activW.reduce((acc,d)=>acc+allItems.filter(i=>d.arr.includes(i.id)).length,0);
+    const pct=possible>0?Math.round((done/possible)*100):0;
+    const label=w===0?'This week':w===1?'Last week':`${w+1} weeks ago`;
+    weeks.push({label,pct,activeDays:activW.length,totalDays:wDays.length});
   }
 
-  // Most missed items (last 30 days)
-  const last30 = days.slice(0, 30);
-  const active30 = last30.filter(d => d.arr.length > 0);
-  const missedCounts = ITEMS.map(it => {
-    const missed = active30.filter(d => !d.arr.includes(it.id)).length;
-    return { name: it.name, missed, total: active30.length };
-  }).filter(i => i.missed > 0).sort((a,b) => b.missed - a.missed).slice(0, 5);
+  // Daily compliance (for line chart — last 30 days, chronological)
+  const dailyTrend=days.slice(0,30).reverse().map(d=>{
+    const possible=allItems.length;
+    const done=allItems.filter(i=>d.arr.includes(i.id)).length;
+    return{ds:d.ds, date:d.date, pct:possible>0?Math.round((done/possible)*100):0, done};
+  });
+
+  // Day-of-week pattern
+  const dowStats=[0,1,2,3,4,5,6].map(dow=>{
+    const dowDays=activeDays.filter(d=>d.dow===dow);
+    const possible=dowDays.length*allItems.length;
+    const done=dowDays.reduce((acc,d)=>acc+allItems.filter(i=>d.arr.includes(i.id)).length,0);
+    return{dow, label:DAYS_SHORT[dow], pct:possible>0?Math.round((done/possible)*100):0, count:dowDays.length};
+  });
+
+  // Missed items (last 30 days)
+  const last30=days.slice(0,30);const active30=last30.filter(d=>d.arr.length>0||d.ds===todayStr);
+  const missedCounts=allItems.map(it=>{
+    const missed=active30.filter(d=>!d.arr.includes(it.id)).length;
+    return{name:it.name,missed,total:active30.length,pct:active30.length>0?Math.round(((active30.length-missed)/active30.length)*100):0};
+  }).filter(i=>i.missed>0).sort((a,b)=>b.missed-a.missed).slice(0,10);
 
   // Overall
-  const possible = activeDays.length * ITEMS.length;
-  const done = activeDays.reduce((acc, d) => acc + ITEMS.filter(i => d.arr.includes(i.id)).length, 0);
-  const overall = possible > 0 ? Math.round((done/possible)*100) : 0;
+  const possible=activeDays.length*allItems.length;
+  const done=activeDays.reduce((acc,d)=>acc+allItems.filter(i=>d.arr.includes(i.id)).length,0);
+  const overall=possible>0?Math.round((done/possible)*100):0;
 
-  return { streak, best, overall, activeDays: activeDays.length, itemStats, sessionStats, sessionLabels, weeks, missedCounts, notes, ITEMS };
-}
-
-function exportCSV() {
-  const ITEMS = getItems().filter(i => !i.noCount);
-  const d = new Date(today);
-  // Summary sheet
-  const { streak, best, overall, sessionStats, sessionLabels, itemStats, weeks, missedCounts } = buildReportData();
-  const rows = [];
-  rows.push(['NILOMI WELLNESS EXPORT']);
-  rows.push(['Generated', today.toLocaleDateString('en-IN', {day:'numeric',month:'long',year:'numeric'})]);
-  rows.push([]);
-  rows.push(['--- SUMMARY ---']);
-  rows.push(['Current streak (days)', streak]);
-  rows.push(['Best streak ever (days)', best]);
-  rows.push(['Overall compliance', overall + '%']);
-  rows.push([]);
-  rows.push(['--- COMPLIANCE BY SESSION ---']);
-  rows.push(['Session', 'Compliance %', 'Doses taken', 'Doses possible']);
-  ['morning','afternoon','night'].forEach(s => {
-    const st = sessionStats[s];
-    rows.push([sessionLabels[s], st.pct + '%', st.done, st.possible]);
-  });
-  rows.push([]);
-  rows.push(['--- COMPLIANCE BY ITEM (last 90 days) ---']);
-  rows.push(['Medicine / Skincare', 'Session', 'Compliance %', 'Days taken', 'Days possible']);
-  itemStats.forEach(it => rows.push([it.name, it.session, it.pct + '%', it.done, it.possible]));
-  rows.push([]);
-  rows.push(['--- WEEKLY BREAKDOWN ---']);
-  rows.push(['Week', 'Compliance %', 'Active days', 'Total days']);
-  weeks.forEach(w => rows.push([w.label, w.pct + '%', w.activeDays, w.totalDays]));
-  rows.push([]);
-  rows.push(['--- DAILY LOG (last 90 days) ---']);
-  rows.push(['Date', 'Day', ...ITEMS.map(i => i.name)]);
-  const d2 = new Date(today);
-  for (let i = 0; i < 90; i++) {
-    if (d2 < APP_START) break;
-    const ds = d2.toISOString().slice(0,10);
-    const arr = getArr(ds);
-    if (arr.length > 0) {
-      rows.push([ds, ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d2.getDay()], ...ITEMS.map(it => arr.includes(it.id) ? 'Done' : 'Missed')]);
-    }
-    d2.setDate(d2.getDate() - 1);
+  // Insights (derived, human-readable)
+  const insights=[];
+  const trend7=dailyTrend.slice(-7);const trend7prev=dailyTrend.slice(-14,-7);
+  const avg7=trend7.length?Math.round(trend7.reduce((a,b)=>a+b.pct,0)/trend7.length):0;
+  const avg7prev=trend7prev.length?Math.round(trend7prev.reduce((a,b)=>a+b.pct,0)/trend7prev.length):0;
+  const trendDelta=avg7-avg7prev;
+  if(trend7prev.length>=4){
+    if(trendDelta>=10)insights.push({kind:'good', text:`You're on an upswing — adherence is up ${trendDelta} points this week vs last (${avg7prev}% → ${avg7}%).`});
+    else if(trendDelta<=-10)insights.push({kind:'warn', text:`Adherence dipped ${Math.abs(trendDelta)} points this week vs last (${avg7prev}% → ${avg7}%). Worth a quick check-in.`});
+    else insights.push({kind:'neutral', text:`Adherence is steady week-over-week (${avg7prev}% → ${avg7}%).`});
   }
-  rows.push([]);
-  rows.push(['--- NOTES ---']);
-  rows.push(['Item', 'Note']);
-  Object.entries(notes).forEach(([id, n]) => rows.push([id, n]));
+  // Best & worst sessions
+  const sessionRanked=Object.entries(sessionStats).filter(([,s])=>s.possible>0).sort((a,b)=>b[1].pct-a[1].pct);
+  if(sessionRanked.length>=2){
+    insights.push({kind:'good', text:`Strongest routine: ${sessionLabels[sessionRanked[0][0]]} (${sessionRanked[0][1].pct}%).`});
+    const worst=sessionRanked[sessionRanked.length-1];
+    if(worst[1].pct<80)insights.push({kind:'warn', text:`${sessionLabels[worst[0]]} routine is the most at-risk (${worst[1].pct}%). Consider an extra alarm or moving items earlier.`});
+  }
+  // Day-of-week weakness
+  const dowRanked=[...dowStats].filter(d=>d.count>=2).sort((a,b)=>a.pct-b.pct);
+  if(dowRanked.length>=3 && dowRanked[0].pct<75){
+    const DAYS_FULL=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    insights.push({kind:'warn', text:`${DAYS_FULL[dowRanked[0].dow]}s are your hardest day (${dowRanked[0].pct}% average). A weekend/weekday cue might help.`});
+  }
+  // Top missed items
+  if(missedCounts.length){
+    const top=missedCounts[0];
+    insights.push({kind:'warn', text:`Most frequently skipped: ${top.name} (missed ${top.missed} of last ${top.total} days).`});
+  }
+  // Streak milestones
+  if(streak>0&&streak%7===0)insights.push({kind:'good', text:`${streak}-day streak — you've hit another weekly milestone.`});
+  if(best>streak&&best>=7)insights.push({kind:'neutral', text:`Your all-time best is ${best} days. You can beat it.`});
+  // Consistency champions
+  const perfect=itemStats.filter(i=>i.pct===100&&i.possible>=7);
+  if(perfect.length>=3)insights.push({kind:'good', text:`${perfect.length} items are at 100% compliance — you've built real habits around ${perfect.slice(0,3).map(p=>p.name).join(', ')}.`});
+  // Full-adherence days in last 30
+  const perfectDays=dailyTrend.filter(d=>d.pct===100).length;
+  if(perfectDays>0)insights.push({kind:'good', text:`${perfectDays} perfect day${perfectDays>1?'s':''} in the last 30 — zero items missed.`});
 
-  const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
-  dlFile('nilomi-wellness-export.csv', csv, 'text/csv');
+  return{streak,best,overall,activeDays:activeDays.length,itemStats,sessionStats,sessionLabels,weeks,dailyTrend,dowStats,missedCounts,notes,allItems,insights,days,avg7,avg7prev,trendDelta};
 }
 
-function exportPDF() {
-  const { streak, best, overall, activeDays, itemStats, sessionStats, sessionLabels, weeks, missedCounts } = buildReportData();
-  const genDate = today.toLocaleDateString('en-IN', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+/* --- Chart rendering helpers (offscreen canvas → PNG data URL) --- */
+function makeChartCanvas(w, h){const c=document.createElement('canvas');c.width=w;c.height=h;c.style.display='none';document.body.appendChild(c);return c;}
+function destroyCanvas(c){try{document.body.removeChild(c);}catch(_){}}
+async function renderChart(config, w, h){
+  const c=makeChartCanvas(w, h);
+  // Chart.js 4 requires a short delay for CDN attach on some mobiles
+  const Chart=window.Chart;
+  const chart=new Chart(c.getContext('2d'), config);
+  await new Promise(r=>setTimeout(r, 80)); // let animations complete
+  const dataUrl=c.toDataURL('image/png');
+  chart.destroy();destroyCanvas(c);
+  return dataUrl;
+}
+function chartColor(pct){return pct>=80?'#16a34a':pct>=50?'#f59e0b':'#ef4444';}
 
-  const barColor = pct => pct >= 80 ? '#4ade80' : pct >= 50 ? '#fbbf24' : '#fb7185';
-  const bar = (pct, w=120) => `<div style="display:inline-flex;align-items:center;gap:8px;"><div style="width:${w}px;height:8px;background:#2a3a2a;border-radius:4px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:${barColor(pct)};border-radius:4px;"></div></div><span style="font-size:11px;color:${barColor(pct)};font-weight:600">${pct}%</span></div>`;
+async function buildChartImages(data){
+  const common={animation:false, plugins:{legend:{display:false}}, responsive:false, maintainAspectRatio:false, scales:{y:{beginAtZero:true, max:100, ticks:{callback:v=>v+'%', font:{size:11}}}, x:{ticks:{font:{size:11}}}}};
+  // Daily trend line
+  const trendImg=await renderChart({
+    type:'line',
+    data:{labels:data.dailyTrend.map(d=>d.date.toLocaleDateString('en-IN',{day:'numeric',month:'short'})),
+      datasets:[{label:'Daily %', data:data.dailyTrend.map(d=>d.pct), borderColor:'#16a34a', backgroundColor:'rgba(22,163,74,0.15)', fill:true, tension:0.3, pointRadius:3, pointBackgroundColor:'#16a34a', borderWidth:2}]},
+    options:{...common, plugins:{...common.plugins, title:{display:true, text:'Daily adherence (last 30 days)', font:{size:14, weight:'bold'}, color:'#111811'}}}
+  }, 720, 300);
+  // Session bars
+  const sessOrder=['morning','afternoon','night'];
+  const sessImg=await renderChart({
+    type:'bar',
+    data:{labels:sessOrder.map(s=>data.sessionLabels[s]), datasets:[{data:sessOrder.map(s=>data.sessionStats[s].pct), backgroundColor:sessOrder.map(s=>chartColor(data.sessionStats[s].pct)), borderRadius:8, borderSkipped:false}]},
+    options:{...common, plugins:{...common.plugins, title:{display:true, text:'Compliance by session (last 90 days)', font:{size:14,weight:'bold'}, color:'#111811'}}}
+  }, 520, 280);
+  // Weekly bars
+  const wks=data.weeks.slice().reverse();
+  const weekImg=await renderChart({
+    type:'bar',
+    data:{labels:wks.map(w=>w.label), datasets:[{data:wks.map(w=>w.pct), backgroundColor:wks.map(w=>chartColor(w.pct)), borderRadius:6}]},
+    options:{...common, plugins:{...common.plugins, title:{display:true, text:'Weekly compliance trend', font:{size:14,weight:'bold'}, color:'#111811'}}, indexAxis:'y'}
+  }, 520, 280);
+  // Day of week
+  const dowImg=await renderChart({
+    type:'bar',
+    data:{labels:data.dowStats.map(d=>d.label), datasets:[{data:data.dowStats.map(d=>d.pct), backgroundColor:data.dowStats.map(d=>chartColor(d.pct)), borderRadius:6}]},
+    options:{...common, plugins:{...common.plugins, title:{display:true, text:'Compliance by day of week', font:{size:14,weight:'bold'}, color:'#111811'}}}
+  }, 520, 280);
+  // Top items (per-item horizontal bar, top 15)
+  const topItems=[...data.itemStats].sort((a,b)=>b.pct-a.pct).slice(0,15);
+  const itemImg=await renderChart({
+    type:'bar',
+    data:{labels:topItems.map(i=>i.name.length>22?i.name.slice(0,20)+'…':i.name), datasets:[{data:topItems.map(i=>i.pct), backgroundColor:topItems.map(i=>chartColor(i.pct)), borderRadius:4}]},
+    options:{...common, indexAxis:'y', plugins:{...common.plugins, title:{display:true, text:'Top 15 items — compliance', font:{size:14,weight:'bold'}, color:'#111811'}}, scales:{x:common.scales.y, y:{ticks:{font:{size:10}}}}}
+  }, 720, Math.max(260, topItems.length*26+60));
+  return{trendImg, sessImg, weekImg, dowImg, itemImg};
+}
 
-  const html = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>Nilomi — Wellness Report</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap');
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'DM Sans',sans-serif;font-weight:300;background:#ffffff;color:#111811;line-height:1.6;padding:0}
-  .page{max-width:800px;margin:0 auto;padding:48px 48px 64px}
-  .header{border-bottom:2px solid #111811;padding-bottom:24px;margin-bottom:32px}
-  .brand{font-family:'DM Serif Display',Georgia,serif;font-size:36px;color:#111811;margin-bottom:4px}
-  .brand em{font-style:italic;color:#16a34a}
-  .report-meta{font-size:12px;color:#5a7a5a;margin-top:6px}
-  h2{font-family:'DM Serif Display',serif;font-size:22px;color:#111811;margin:32px 0 14px;padding-bottom:6px;border-bottom:1px solid #e0e8e0}
-  h3{font-size:13px;font-weight:600;color:#5a7a5a;text-transform:uppercase;letter-spacing:.08em;margin:20px 0 10px}
-  .stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:8px}
-  .stat-box{background:#f5f7f5;border-radius:12px;padding:18px;text-align:center}
-  .stat-num{font-family:'DM Serif Display',serif;font-size:36px;color:#111811;line-height:1}
-  .stat-sub{font-size:11px;color:#5a7a5a;margin-top:4px}
-  .stat-box.highlight{background:#0f1a14;color:#e8f0e8}
-  .stat-box.highlight .stat-num{color:#4ade80}
-  .stat-box.highlight .stat-sub{color:#7a9a7a}
-  table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:4px}
-  th{text-align:left;padding:8px 10px;background:#f5f7f5;color:#5a7a5a;font-weight:500;font-size:11px;letter-spacing:.05em;text-transform:uppercase}
-  td{padding:8px 10px;border-bottom:1px solid #eef1ee;color:#111811;vertical-align:middle}
-  tr:last-child td{border-bottom:none}
-  tr:hover td{background:#fafbfa}
-  .pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:500}
-  .pill-green{background:#dcfce7;color:#15803d}
-  .pill-amber{background:#fef3c7;color:#92400e}
-  .pill-red{background:#ffe4e6;color:#be123c}
-  .pill-blue{background:#dbeafe;color:#1e40af}
-  .pill-purple{background:#ede9fe;color:#5b21b6}
-  .week-row{display:flex;gap:12px;margin-bottom:10px;align-items:center}
-  .week-label{font-size:12px;color:#111811;width:100px;flex-shrink:0}
-  .week-bar-bg{flex:1;height:10px;background:#f0f4f0;border-radius:5px;overflow:hidden}
-  .week-bar-fill{height:100%;border-radius:5px}
-  .week-pct{font-size:12px;font-weight:600;width:36px;text-align:right}
-  .missed-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #eef1ee}
-  .missed-item:last-child{border-bottom:none}
-  .missed-name{font-size:12px;color:#111811}
-  .missed-bar{display:flex;align-items:center;gap:8px}
-  .notes-table td:first-child{color:#5a7a5a;font-weight:500;width:200px}
-  .notes-table td:last-child{font-style:italic;color:#374151}
-  .footer{margin-top:48px;padding-top:16px;border-top:1px solid #e0e8e0;font-size:10px;color:#9ca3af;display:flex;justify-content:space-between}
-  .section-note{font-size:11px;color:#9ca3af;margin-bottom:14px;font-style:italic}
-  @media print{body{padding:0}.page{padding:24px}}
-</style>
-</head>
-<body>
-<div class="page">
+function setExportStatus(txt){const el=document.getElementById('exportStatus');if(!el)return;if(!txt){el.style.display='none';el.textContent='';}else{el.style.display='block';el.textContent=txt;}}
 
-  <div class="header">
-    <div class="brand"><em>Nilomi</em> — Wellness Report</div>
-    <div class="report-meta">Generated on ${genDate} &nbsp;·&nbsp; Data from ${APP_START_STR} onwards &nbsp;·&nbsp; ${activeDays} active days recorded</div>
-  </div>
+async function exportExcel(){
+  const xBtn=document.getElementById('exportXlsxBtn');if(xBtn)xBtn.disabled=true;
+  setExportStatus('Loading export engine…');
+  try{
+    await window.__loadReportingLibs();
+    if(!window.ExcelJS)throw new Error('ExcelJS failed to load');
+    setExportStatus('Rendering charts…');
+    const data=buildReportData();
+    const charts=await buildChartImages(data);
+    setExportStatus('Building workbook…');
+    const wb=new ExcelJS.Workbook();
+    wb.creator='Nilomi';wb.created=new Date();
+    const profile=getProfile();
 
-  <h2>Overview</h2>
-  <div class="stats-grid">
-    <div class="stat-box highlight">
-      <div class="stat-num">${streak}</div>
-      <div class="stat-sub">Current streak (days)</div>
-    </div>
-    <div class="stat-box highlight">
-      <div class="stat-num">${best}</div>
-      <div class="stat-sub">Best streak ever</div>
-    </div>
-    <div class="stat-box highlight">
-      <div class="stat-num">${overall}%</div>
-      <div class="stat-sub">Overall compliance</div>
-    </div>
-  </div>
+    /* ---- Sheet 1: Summary ---- */
+    const s1=wb.addWorksheet('Summary', {properties:{tabColor:{argb:'FF16A34A'}}, views:[{showGridLines:false}]});
+    s1.columns=[{width:3},{width:26},{width:18},{width:18},{width:18},{width:3}];
+    s1.mergeCells('B2:E2');
+    const title=s1.getCell('B2');title.value=`${profile.name} — Wellness Report`;
+    title.font={name:'Calibri', size:22, bold:true, color:{argb:'FF111811'}};
+    title.alignment={vertical:'middle'};s1.getRow(2).height=34;
+    s1.mergeCells('B3:E3');
+    s1.getCell('B3').value=`Generated ${today.toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} · ${data.activeDays} active days`;
+    s1.getCell('B3').font={size:11, color:{argb:'FF5A7A5A'}};
 
-  <h2>Compliance by session</h2>
-  <p class="section-note">How consistently each part of your daily routine was completed across all recorded days.</p>
-  <table>
-    <thead><tr><th>Session</th><th>Compliance</th><th>Doses taken</th><th>Possible doses</th><th>Status</th></tr></thead>
-    <tbody>
-      ${['morning','afternoon','night'].map(s => {
-        const st = sessionStats[s];
-        const pillClass = st.pct>=80?'pill-green':st.pct>=50?'pill-amber':'pill-red';
-        const status = st.pct>=80?'On track':st.pct>=50?'Needs attention':'Struggling';
-        return `<tr><td>${sessionLabels[s]}</td><td>${bar(st.pct,100)}</td><td>${st.done}</td><td>${st.possible}</td><td><span class="pill ${pillClass}">${status}</span></td></tr>`;
-      }).join('')}
-    </tbody>
-  </table>
+    // Headline stats
+    const headers=[['Current streak', data.streak+' days'],['Best streak ever', data.best+' days'],['Overall compliance', data.overall+'%']];
+    headers.forEach((h,i)=>{
+      const row=5+i*2;
+      s1.mergeCells(`B${row}:C${row}`);s1.getCell(`B${row}`).value=h[0];s1.getCell(`B${row}`).font={bold:true, color:{argb:'FF5A7A5A'}, size:10};
+      s1.mergeCells(`D${row}:E${row}`);s1.getCell(`D${row}`).value=h[1];s1.getCell(`D${row}`).font={size:18, bold:true, color:{argb:'FF16A34A'}};
+      s1.getRow(row).height=24;
+    });
 
-  <h2>Weekly breakdown</h2>
-  <p class="section-note">How your compliance has trended week by week — useful for spotting patterns.</p>
-  ${weeks.map(w => `
-    <div class="week-row">
-      <div class="week-label">${w.label}</div>
-      <div class="week-bar-bg"><div class="week-bar-fill" style="width:${w.pct}%;background:${barColor(w.pct)}"></div></div>
-      <div class="week-pct" style="color:${barColor(w.pct)}">${w.pct}%</div>
-    </div>`).join('')}
+    // Insights
+    s1.getCell('B12').value='INSIGHTS';s1.getCell('B12').font={bold:true, size:11, color:{argb:'FF5A7A5A'}};
+    data.insights.forEach((ins,i)=>{
+      const r=13+i;const cell=s1.getCell(`B${r}`);
+      s1.mergeCells(`B${r}:E${r}`);
+      cell.value=(ins.kind==='good'?'✓ ':ins.kind==='warn'?'⚠ ':'• ')+ins.text;
+      cell.font={size:11, color:{argb: ins.kind==='good'?'FF15803D':ins.kind==='warn'?'FF92400E':'FF111811'}};
+      cell.alignment={wrapText:true, vertical:'middle'};
+      s1.getRow(r).height=22;
+    });
 
-  <h2>Medicine &amp; skincare compliance</h2>
-  <p class="section-note">Individual compliance rate for each item in your routine over the last 90 days.</p>
-  <h3>Medicines</h3>
-  <table>
-    <thead><tr><th>Medicine</th><th>Compliance</th><th>Days taken</th><th>Days possible</th></tr></thead>
-    <tbody>
-      ${itemStats.filter(i=>i.session!=='asneeded'&&['jupishine','renocia','vitd3','vitakind','omega3','tfaze','clingen','lactofy'].includes(
-        i.name.toLowerCase().replace(/\s+/g,'').replace('(','').replace(')','')
-      ) || ['jupishine','renocia diva','vitamin d3','vitakind zit','omega-3','t faze','clingen forte','lactofy'].some(m=>i.name.toLowerCase().includes(m.split(' ')[0].toLowerCase()))).map(it => `
-        <tr><td>${it.name}</td><td>${bar(it.pct)}</td><td>${it.done}</td><td>${it.possible}</td></tr>`).join('')}
-    </tbody>
-  </table>
-  <h3 style="margin-top:20px">Skincare</h3>
-  <table>
-    <thead><tr><th>Skincare item</th><th>Compliance</th><th>Days applied</th><th>Days possible</th></tr></thead>
-    <tbody>
-      ${itemStats.filter(i => ['glutone','flawlizo','rivela','glibest','theara','brilante','juveskin'].some(k=>i.name.toLowerCase().includes(k))).map(it => `
-        <tr><td>${it.name}</td><td>${bar(it.pct)}</td><td>${it.done}</td><td>${it.possible}</td></tr>`).join('')}
-    </tbody>
-  </table>
+    // Embed trend chart
+    const embedAt=14+data.insights.length+1;
+    const trendImgId=wb.addImage({base64:charts.trendImg.split(',')[1], extension:'png'});
+    s1.addImage(trendImgId, {tl:{col:1, row:embedAt}, ext:{width:720, height:300}});
+    const sessImgId=wb.addImage({base64:charts.sessImg.split(',')[1], extension:'png'});
+    s1.addImage(sessImgId, {tl:{col:1, row:embedAt+17}, ext:{width:520, height:280}});
 
-  ${missedCounts.length ? `
-  <h2>Most frequently missed (last 30 days)</h2>
-  <p class="section-note">Items you missed most often — worth discussing with your doctor if any medicine appears here regularly.</p>
-  <div>
-    ${missedCounts.map((m,i) => `
-      <div class="missed-item">
-        <div>
-          <div class="missed-name">${i+1}. ${m.name}</div>
-          <div style="font-size:10px;color:#9ca3af;margin-top:2px">Missed ${m.missed} of ${m.total} active days</div>
-        </div>
-        <div class="missed-bar">
-          ${bar(Math.round(((m.total-m.missed)/m.total)*100), 80)}
-        </div>
-      </div>`).join('')}
-  </div>` : ''}
+    /* ---- Sheet 2: Item Stats ---- */
+    const s2=wb.addWorksheet('Item compliance');
+    s2.columns=[{header:'Item', key:'name', width:30},{header:'Session', key:'session', width:14},{header:'Days taken', key:'done', width:12},{header:'Days possible', key:'possible', width:14},{header:'Compliance', key:'pct', width:14}];
+    s2.getRow(1).font={bold:true, color:{argb:'FFFFFFFF'}};s2.getRow(1).fill={type:'pattern', pattern:'solid', fgColor:{argb:'FF16A34A'}};
+    data.itemStats.forEach(it=>{
+      const row=s2.addRow({name:it.name, session:data.sessionLabels[it.session]||it.session, done:it.done, possible:it.possible, pct:it.pct/100});
+      row.getCell('pct').numFmt='0%';
+      const pct=it.pct;
+      const colorArgb=pct>=80?'FFDCFCE7':pct>=50?'FFFEF3C7':'FFFFE4E6';
+      const textArgb=pct>=80?'FF15803D':pct>=50?'FF92400E':'FFBE123C';
+      row.getCell('pct').fill={type:'pattern', pattern:'solid', fgColor:{argb:colorArgb}};
+      row.getCell('pct').font={bold:true, color:{argb:textArgb}};
+    });
+    s2.views=[{state:'frozen', ySplit:1}];
 
-  ${Object.keys(notes).length ? `
-  <h2>Your notes</h2>
-  <p class="section-note">Observations and side effects you logged — share these with your doctor.</p>
-  <table class="notes-table">
-    <thead><tr><th>Item</th><th>Note</th></tr></thead>
-    <tbody>
-      ${Object.entries(notes).map(([id,n]) => `<tr><td>${id.replace(/-/g,' ')}</td><td>${n}</td></tr>`).join('')}
-    </tbody>
-  </table>` : ''}
+    /* ---- Sheet 3: Session & DOW ---- */
+    const s3=wb.addWorksheet('Sessions & trends');
+    s3.columns=[{width:22},{width:16},{width:16},{width:16},{width:4},{width:20},{width:14}];
+    s3.getCell('A1').value='By session';s3.getCell('A1').font={bold:true, size:13};
+    s3.addRow([]);
+    s3.addRow(['Session','Compliance','Doses taken','Possible']);
+    s3.getRow(3).font={bold:true};
+    ['morning','afternoon','night'].forEach(key=>{
+      const st=data.sessionStats[key];
+      const r=s3.addRow([data.sessionLabels[key], st.pct/100, st.done, st.possible]);
+      r.getCell(2).numFmt='0%';
+    });
+    s3.getCell('F1').value='By day of week';s3.getCell('F1').font={bold:true, size:13};
+    s3.getCell('F3').value='Day';s3.getCell('G3').value='Compliance';
+    s3.getRow(3).font={bold:true};
+    const dayNames=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    data.dowStats.forEach((d,i)=>{s3.getCell('F'+(4+i)).value=dayNames[d.dow];s3.getCell('G'+(4+i)).value=d.pct/100;s3.getCell('G'+(4+i)).numFmt='0%';});
+    const dowImgId=wb.addImage({base64:charts.dowImg.split(',')[1], extension:'png'});
+    s3.addImage(dowImgId, {tl:{col:0, row:14}, ext:{width:520, height:280}});
+    const weekImgId=wb.addImage({base64:charts.weekImg.split(',')[1], extension:'png'});
+    s3.addImage(weekImgId, {tl:{col:5, row:14}, ext:{width:520, height:280}});
 
-  <div class="footer">
-    <span>Nilomi v3 — Personal Wellness Tracker</span>
-    <span>Printed ${genDate}</span>
-  </div>
-</div>
-</body>
-</html>`;
+    /* ---- Sheet 4: Daily log ---- */
+    const s4=wb.addWorksheet('Daily log');
+    const logHeaders=['Date','Day',...data.allItems.map(i=>i.name), 'Completion %'];
+    s4.addRow(logHeaders);
+    s4.getRow(1).font={bold:true, color:{argb:'FFFFFFFF'}};s4.getRow(1).fill={type:'pattern', pattern:'solid', fgColor:{argb:'FF111811'}};
+    s4.columns=logHeaders.map((h,i)=>({width:i===0?12:i===1?8:Math.max(10, Math.min(24, h.length+2))}));
+    data.days.slice().reverse().forEach(d=>{
+      const arr=d.arr;
+      const flags=data.allItems.map(i=>arr.includes(i.id)?'✓':(arr.length>0?'✗':''));
+      const pct=data.allItems.length>0?Math.round((data.allItems.filter(i=>arr.includes(i.id)).length/data.allItems.length)*100):0;
+      const row=s4.addRow([d.ds, DAYS_SHORT[d.dow], ...flags, arr.length>0?pct/100:'']);
+      if(arr.length>0)row.getCell(row.cellCount).numFmt='0%';
+      // Colour the pct column
+      const c=row.getCell(row.cellCount);
+      if(arr.length>0){
+        const colorArgb=pct>=80?'FFDCFCE7':pct>=50?'FFFEF3C7':'FFFFE4E6';
+        c.fill={type:'pattern', pattern:'solid', fgColor:{argb:colorArgb}};
+      }
+    });
+    s4.views=[{state:'frozen', ySplit:1, xSplit:2}];
 
-  const win = window.open('', '_blank');
-  win.document.write(html);
-  win.document.close();
-  setTimeout(() => win.print(), 800);
+    /* ---- Sheet 5: Missed & Notes ---- */
+    const s5=wb.addWorksheet('Missed & notes');
+    s5.getCell('A1').value='Most missed (last 30 days)';s5.getCell('A1').font={bold:true, size:13};
+    s5.addRow([]);s5.addRow(['Item','Missed days','Of total days','Compliance']);s5.getRow(3).font={bold:true};
+    s5.columns=[{width:28},{width:14},{width:14},{width:14}];
+    data.missedCounts.forEach(m=>{const r=s5.addRow([m.name, m.missed, m.total, m.pct/100]);r.getCell(4).numFmt='0%';});
+    const notesStart=4+data.missedCounts.length+2;
+    s5.getCell('A'+notesStart).value='Your notes';s5.getCell('A'+notesStart).font={bold:true, size:13};
+    s5.addRow([]);s5.addRow(['Item','Note']);s5.getRow(notesStart+2).font={bold:true};
+    Object.entries(notes).forEach(([id,n])=>{const item=data.allItems.find(x=>x.id===id);s5.addRow([item?item.name:id, n]);});
+
+    /* ---- Write out ---- */
+    setExportStatus('Saving file…');
+    const buf=await wb.xlsx.writeBuffer();
+    const blob=new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download=`Nilomi-Wellness-${todayStr}.xlsx`;a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+    setExportStatus('');toast('Excel report downloaded');
+  }catch(err){console.error(err);setExportStatus('Export failed: '+err.message);alert('Excel export failed. Check your internet connection — the export libraries load from CDN.\n\n'+err.message);}
+  finally{if(xBtn)xBtn.disabled=false;setTimeout(()=>setExportStatus(''),3000);}
+}
+
+async function exportPDF(){
+  const pBtn=document.getElementById('exportPdfBtn');if(pBtn)pBtn.disabled=true;
+  setExportStatus('Loading export engine…');
+  try{
+    await window.__loadReportingLibs();
+    if(!(window.jspdf&&window.jspdf.jsPDF))throw new Error('jsPDF failed to load');
+    setExportStatus('Rendering charts…');
+    const data=buildReportData();
+    const charts=await buildChartImages(data);
+    const {jsPDF}=window.jspdf;
+    const doc=new jsPDF({unit:'pt', format:'a4'});
+    const W=doc.internal.pageSize.getWidth();const H=doc.internal.pageSize.getHeight();
+    const profile=getProfile();
+    let y=48;
+
+    // Header
+    doc.setFillColor(15,26,20);doc.rect(0,0,W,90,'F');
+    doc.setTextColor(232,240,232);doc.setFont('helvetica','bold');doc.setFontSize(26);
+    doc.text(profile.name+' — Wellness Report', 40, 48);
+    doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(122,154,122);
+    doc.text(`${today.toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}  ·  ${data.activeDays} active days`, 40, 68);
+    y=110;
+
+    // Stat cards
+    const cardW=(W-120)/3;const cardH=70;
+    const stats=[['Current streak', data.streak, 'days'],['Best streak ever', data.best, 'days'],['Overall compliance', data.overall, '%']];
+    stats.forEach((s,i)=>{
+      const x=40+i*(cardW+20);
+      doc.setFillColor(245,247,245);doc.roundedRect(x,y,cardW,cardH,8,8,'F');
+      doc.setTextColor(90,122,90);doc.setFontSize(9);doc.setFont('helvetica','bold');doc.text(s[0].toUpperCase(), x+14, y+22);
+      doc.setTextColor(22,163,74);doc.setFontSize(30);doc.setFont('helvetica','bold');doc.text(String(s[1]), x+14, y+55);
+      doc.setTextColor(90,122,90);doc.setFontSize(10);doc.setFont('helvetica','normal');doc.text(s[2], x+14+doc.getTextWidth(String(s[1]))+6, y+55);
+    });
+    y+=cardH+25;
+
+    // Insights
+    doc.setTextColor(17,24,17);doc.setFont('helvetica','bold');doc.setFontSize(14);doc.text('Key insights', 40, y);y+=8;
+    doc.setDrawColor(224,232,224);doc.setLineWidth(0.5);doc.line(40, y, W-40, y);y+=14;
+    doc.setFont('helvetica','normal');doc.setFontSize(10.5);
+    data.insights.forEach(ins=>{
+      const c=ins.kind==='good'?[21,128,61]:ins.kind==='warn'?[146,64,14]:[17,24,17];
+      doc.setTextColor(...c);
+      const mark=ins.kind==='good'?'✓':ins.kind==='warn'?'!':'•';
+      doc.setFont('helvetica','bold');doc.text(mark, 40, y);doc.setFont('helvetica','normal');
+      const lines=doc.splitTextToSize(ins.text, W-100);
+      doc.text(lines, 56, y);
+      y+=lines.length*14+4;
+      if(y>H-100){doc.addPage();y=48;}
+    });
+    y+=8;
+
+    // Daily trend chart
+    if(y>H-260){doc.addPage();y=48;}
+    const trendProps=doc.getImageProperties(charts.trendImg);
+    const trendW=W-80;const trendH=(trendProps.height*trendW)/trendProps.width;
+    doc.addImage(charts.trendImg, 'PNG', 40, y, trendW, trendH);
+    y+=trendH+16;
+
+    // Session & DOW charts side-by-side
+    if(y>H-240){doc.addPage();y=48;}
+    const halfW=(W-100)/2;
+    const sp=doc.getImageProperties(charts.sessImg);const sH=(sp.height*halfW)/sp.width;
+    doc.addImage(charts.sessImg, 'PNG', 40, y, halfW, sH);
+    const dp=doc.getImageProperties(charts.dowImg);const dH=(dp.height*halfW)/dp.width;
+    doc.addImage(charts.dowImg, 'PNG', 40+halfW+20, y, halfW, dH);
+    y+=Math.max(sH,dH)+16;
+
+    // Item compliance table
+    doc.addPage();y=48;
+    doc.setFont('helvetica','bold');doc.setFontSize(14);doc.setTextColor(17,24,17);doc.text('Item compliance (last 90 days)', 40, y);y+=20;
+    doc.autoTable({
+      startY:y,
+      head:[['Item','Session','Days taken','Days possible','Compliance']],
+      body:data.itemStats.map(i=>[i.name, data.sessionLabels[i.session]||i.session, i.done, i.possible, i.pct+'%']),
+      theme:'grid',
+      headStyles:{fillColor:[15,26,20], textColor:[232,240,232], fontSize:10, fontStyle:'bold'},
+      bodyStyles:{fontSize:10},
+      columnStyles:{0:{cellWidth:'auto'},1:{cellWidth:80},2:{cellWidth:70,halign:'center'},3:{cellWidth:80,halign:'center'},4:{cellWidth:80,halign:'center', fontStyle:'bold'}},
+      didParseCell: d=>{
+        if(d.section==='body' && d.column.index===4){
+          const pct=parseInt(d.cell.raw);
+          if(pct>=80){d.cell.styles.fillColor=[220,252,231];d.cell.styles.textColor=[21,128,61];}
+          else if(pct>=50){d.cell.styles.fillColor=[254,243,199];d.cell.styles.textColor=[146,64,14];}
+          else{d.cell.styles.fillColor=[255,228,230];d.cell.styles.textColor=[190,18,60];}
+        }
+      },
+      margin:{left:40, right:40}
+    });
+    y=doc.lastAutoTable.finalY+20;
+
+    // Item chart
+    if(y>H-200){doc.addPage();y=48;}
+    const itemP=doc.getImageProperties(charts.itemImg);const itemW=W-80;const itemH=Math.min((itemP.height*itemW)/itemP.width, H-y-60);
+    doc.addImage(charts.itemImg, 'PNG', 40, y, itemW, itemH);
+    y+=itemH+20;
+
+    // Missed items
+    if(data.missedCounts.length){
+      if(y>H-200){doc.addPage();y=48;}
+      doc.setFont('helvetica','bold');doc.setFontSize(14);doc.setTextColor(17,24,17);doc.text('Most frequently missed (last 30 days)', 40, y);y+=20;
+      doc.autoTable({
+        startY:y,
+        head:[['Rank','Item','Missed','Of total days','Compliance']],
+        body:data.missedCounts.map((m,i)=>[i+1, m.name, m.missed, m.total, m.pct+'%']),
+        theme:'striped',
+        headStyles:{fillColor:[239,68,68], textColor:[255,255,255], fontSize:10},
+        bodyStyles:{fontSize:10},
+        margin:{left:40, right:40}
+      });
+      y=doc.lastAutoTable.finalY+20;
+    }
+
+    // Notes
+    if(Object.keys(notes).length){
+      if(y>H-150){doc.addPage();y=48;}
+      doc.setFont('helvetica','bold');doc.setFontSize(14);doc.setTextColor(17,24,17);doc.text('Your notes', 40, y);y+=20;
+      const rows=Object.entries(notes).map(([id,n])=>{const item=data.allItems.find(x=>x.id===id);return[item?item.name:id, n];});
+      doc.autoTable({
+        startY:y,
+        head:[['Item','Note']],
+        body:rows,
+        theme:'grid',
+        headStyles:{fillColor:[90,122,90], textColor:[255,255,255], fontSize:10},
+        bodyStyles:{fontSize:10, cellPadding:6},
+        columnStyles:{0:{cellWidth:130, fontStyle:'bold'},1:{cellWidth:'auto'}},
+        margin:{left:40, right:40}
+      });
+    }
+
+    // Footer on every page
+    const pageCount=doc.internal.getNumberOfPages();
+    for(let p=1;p<=pageCount;p++){
+      doc.setPage(p);
+      doc.setFontSize(8);doc.setTextColor(156,163,175);
+      doc.text('Nilomi v4.1 — Personal Wellness Tracker', 40, H-20);
+      doc.text(`Page ${p} of ${pageCount}`, W-80, H-20);
+    }
+
+    setExportStatus('Saving file…');
+    doc.save(`Nilomi-Wellness-${todayStr}.pdf`);
+    setExportStatus('');toast('PDF report downloaded');
+  }catch(err){console.error(err);setExportStatus('Export failed: '+err.message);alert('PDF export failed. Check your internet connection — the export libraries load from CDN.\n\n'+err.message);}
+  finally{if(pBtn)pBtn.disabled=false;setTimeout(()=>setExportStatus(''),3000);}
 }
 
 function dlFile(name,content,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;a.click();}
 
-let historyPollInterval = null;
+/* --------------------- ITEM EDITOR --------------------- */
+let editingItemId=null;
+function renderItemList(){
+  const items=loadItems();
+  document.getElementById('itemsCount').textContent=`(${items.length})`;
+  const el=document.getElementById('itemList');
+  if(items.length===0){el.innerHTML='<div class="empty-state">No items yet. Add your first medicine below.</div>';return;}
+  const sessionIcon={morning:'☀',afternoon:'🌤',night:'🌙',asneeded:'💧'};
+  el.innerHTML=items.map(it=>`
+    <div class="item-row" onclick="openItemEditor('${it.id}')">
+      <div class="item-row-icon ${it.color||'ic-blue'}">${it.icon||'💊'}</div>
+      <div class="item-row-body">
+        <div class="item-row-name">${escapeHtml(it.name)}</div>
+        <div class="item-row-meta">${sessionIcon[it.session]||''} ${it.session}${it.frequency==='weekly'?` · ${DAYS_SHORT[it.weeklyDay]||''}`:''}${it.courseId?` · course: ${escapeHtml((loadCourses()[it.courseId]||{}).name||it.courseId)}`:''}</div>
+      </div>
+      <div class="item-row-actions"><button class="item-row-btn" onclick="event.stopPropagation();openItemEditor('${it.id}')">Edit</button></div>
+    </div>`).join('');
+}
+function openItemEditor(id){
+  editingItemId=id||null;
+  const items=loadItems();const courses=loadCourses();const altGroups=loadAltGroups();
+  const it=id?items.find(i=>i.id===id):null;
+  document.getElementById('itemEditorTitle').textContent=it?'Edit item':'Add medicine or skincare';
+  document.getElementById('ieName').value=it?it.name:'';
+  document.getElementById('ieDetail').value=it?(it.detail||''):'';
+  document.getElementById('ieSession').value=it?it.session:'morning';
+  document.getElementById('ieIcon').value=it?(it.icon||'💊'):'💊';
+  // Colors
+  const activeColor=it?it.color:'ic-blue';
+  document.querySelectorAll('#ieColors .color-sw').forEach(sw=>{sw.classList.toggle('active', sw.dataset.color===activeColor);});
+  // Frequency
+  document.getElementById('ieFrequency').value=it?(it.frequency||'daily'):'daily';
+  document.getElementById('ieWeeklyDay').value=it&&typeof it.weeklyDay==='number'?String(it.weeklyDay):'0';
+  document.getElementById('ieWeeklyDayWrap').style.display=document.getElementById('ieFrequency').value==='weekly'?'block':'none';
+  // Courses dropdown
+  const cSel=document.getElementById('ieCourse');
+  cSel.innerHTML='<option value="">— none —</option>'+Object.entries(courses).map(([k,c])=>`<option value="${k}"${it&&it.courseId===k?' selected':''}>${escapeHtml(c.name)} (${c.days}d)</option>`).join('');
+  // Alt groups dropdown
+  const aSel=document.getElementById('ieAltGroup');
+  const currentGroup=Object.entries(altGroups).find(([gid,g])=>(g.itemIds||[]).includes(id));
+  aSel.innerHTML='<option value="">— none —</option>'+Object.entries(altGroups).map(([k,g])=>`<option value="${k}"${currentGroup&&currentGroup[0]===k?' selected':''}>${escapeHtml(g.label)}</option>`).join('');
+  document.getElementById('ieDeleteBtn').style.display=id?'inline-block':'none';
+  document.getElementById('itemEditorBg').classList.add('open');
+}
+function closeItemEditor(){document.getElementById('itemEditorBg').classList.remove('open');editingItemId=null;}
+document.getElementById('itemEditorBg').addEventListener('click',e=>{if(e.target.id==='itemEditorBg')closeItemEditor();});
+document.getElementById('ieFrequency').addEventListener('change',e=>{document.getElementById('ieWeeklyDayWrap').style.display=e.target.value==='weekly'?'block':'none';});
+document.querySelectorAll('#ieColors .color-sw').forEach(sw=>sw.addEventListener('click',()=>{document.querySelectorAll('#ieColors .color-sw').forEach(s=>s.classList.remove('active'));sw.classList.add('active');}));
+
+function saveItemEditor(){
+  const name=document.getElementById('ieName').value.trim();
+  if(!name){alert('Name is required');return;}
+  const detail=document.getElementById('ieDetail').value.trim();
+  const session=document.getElementById('ieSession').value;
+  const icon=document.getElementById('ieIcon').value.trim()||'💊';
+  const color=(document.querySelector('#ieColors .color-sw.active')||{dataset:{color:'ic-blue'}}).dataset.color;
+  const frequency=document.getElementById('ieFrequency').value;
+  const weeklyDay=frequency==='weekly'?parseInt(document.getElementById('ieWeeklyDay').value,10):null;
+  const courseId=document.getElementById('ieCourse').value||null;
+  const altGroupId=document.getElementById('ieAltGroup').value||null;
+  const items=loadItems();
+  let id=editingItemId;
+  if(!id){
+    id=name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'item';
+    let base=id,n=1;while(items.find(i=>i.id===id)){id=base+'-'+(++n);}
+  }
+  const newItem={id,name,detail,session,icon,color,frequency};
+  if(frequency==='weekly')newItem.weeklyDay=weeklyDay;
+  if(courseId)newItem.courseId=courseId;
+  const idx=items.findIndex(i=>i.id===id);
+  if(idx>=0)items[idx]=newItem;else items.push(newItem);
+  saveItems(items);
+  // Update alt groups
+  const groups=loadAltGroups();
+  for(const g of Object.values(groups)){g.itemIds=(g.itemIds||[]).filter(x=>x!==id);if(g.currentPick===id)g.currentPick=(g.itemIds[0]||null);}
+  if(altGroupId && groups[altGroupId]){groups[altGroupId].itemIds.push(id);if(!groups[altGroupId].currentPick)groups[altGroupId].currentPick=id;}
+  // Clean empty groups' current pick
+  for(const gid of Object.keys(groups)){if(!(groups[gid].itemIds||[]).includes(groups[gid].currentPick))groups[gid].currentPick=groups[gid].itemIds[0]||null;}
+  saveAltGroups(groups);
+  closeItemEditor();renderItemList();renderAltGroupList();render();toast('Saved');
+}
+function deleteItem(){
+  if(!editingItemId)return;
+  if(!confirm('Delete this item? Its history stays recorded.'))return;
+  const items=loadItems().filter(i=>i.id!==editingItemId);
+  saveItems(items);
+  const groups=loadAltGroups();for(const g of Object.values(groups)){g.itemIds=(g.itemIds||[]).filter(x=>x!==editingItemId);if(g.currentPick===editingItemId)g.currentPick=(g.itemIds[0]||null);}saveAltGroups(groups);
+  closeItemEditor();renderItemList();renderAltGroupList();render();toast('Deleted');
+}
+function restoreDefaults(){
+  if(!confirm('Replace your current item list with the original 17 defaults? Your history and notes are kept.'))return;
+  lsSet('items', DEFAULT_ITEMS);lsSet('courses', DEFAULT_COURSES);lsSet('altGroups', DEFAULT_ALT_GROUPS);
+  bumpAndSync();renderItemList();renderCourseList();renderAltGroupList();render();toast('Defaults restored');
+}
+
+/* --------------------- COURSE EDITOR --------------------- */
+let editingCourseId=null;
+function renderCourseList(){
+  const courses=loadCourses();
+  const el=document.getElementById('courseList');
+  const keys=Object.keys(courses);
+  if(keys.length===0){el.innerHTML='<div class="empty-state">No courses yet.</div>';return;}
+  el.innerHTML=keys.map(cid=>{
+    const c=courses[cid];const info=courseInfo(c);
+    const status=info?(info.active?`Day ${info.day} of ${info.total} · ${info.left} left`:'Not active'):'—';
+    return `<div class="course-row" onclick="openCourseEditor('${cid}')">
+      <div class="course-row-head"><div class="course-row-name">${escapeHtml(c.name)}</div><div style="font-size:10px;color:var(--muted)">${status}</div></div>
+      <div style="font-size:11px;color:var(--muted)">${c.days} days · starts ${c.startDate}</div>
+    </div>`;
+  }).join('');
+}
+function openCourseEditor(id){
+  editingCourseId=id||null;
+  const c=id?loadCourses()[id]:null;
+  document.getElementById('courseEditorTitle').textContent=c?'Edit course':'Add course';
+  document.getElementById('ceName').value=c?c.name:'';
+  document.getElementById('ceDays').value=c?c.days:7;
+  document.getElementById('ceStart').value=c?c.startDate:todayStr;
+  document.getElementById('ceDeleteBtn').style.display=id?'inline-block':'none';
+  document.getElementById('courseEditorBg').classList.add('open');
+}
+function closeCourseEditor(){document.getElementById('courseEditorBg').classList.remove('open');editingCourseId=null;}
+document.getElementById('courseEditorBg').addEventListener('click',e=>{if(e.target.id==='courseEditorBg')closeCourseEditor();});
+function saveCourseEditor(){
+  const name=document.getElementById('ceName').value.trim();
+  if(!name){alert('Name is required');return;}
+  const days=parseInt(document.getElementById('ceDays').value,10);
+  if(!days||days<1){alert('Valid duration required');return;}
+  const startDate=document.getElementById('ceStart').value||todayStr;
+  const courses=loadCourses();
+  let id=editingCourseId;
+  if(!id){id=name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'course';let base=id,n=1;while(courses[id]){id=base+'-'+(++n);}}
+  courses[id]={name,days,startDate};
+  saveCourses(courses);closeCourseEditor();renderCourseList();renderItemList();render();toast('Saved');
+}
+function deleteCourse(){
+  if(!editingCourseId)return;
+  if(!confirm('Delete this course? Items linked to it will just lose the Day X of Y badge.'))return;
+  const courses=loadCourses();delete courses[editingCourseId];saveCourses(courses);
+  // Unlink items
+  const items=loadItems();items.forEach(it=>{if(it.courseId===editingCourseId)delete it.courseId;});saveItems(items);
+  closeCourseEditor();renderCourseList();renderItemList();render();toast('Deleted');
+}
+
+/* --------------------- ALT GROUP EDITOR --------------------- */
+let editingAltGroupId=null;
+function renderAltGroupList(){
+  const groups=loadAltGroups();const items=loadItems();
+  const el=document.getElementById('altGroupList');
+  const keys=Object.keys(groups);
+  if(keys.length===0){el.innerHTML='<div class="empty-state">No alternating groups.</div>';return;}
+  el.innerHTML=keys.map(gid=>{
+    const g=groups[gid];
+    const memberNames=(g.itemIds||[]).map(id=>{const it=items.find(i=>i.id===id);return it?it.name:id;});
+    return `<div class="course-row" onclick="openAltGroupEditor('${gid}')">
+      <div class="course-row-head"><div class="course-row-name">${escapeHtml(g.label)}</div></div>
+      <div style="font-size:11px;color:var(--muted)">${escapeHtml(memberNames.join(' · ')||'empty')}</div>
+    </div>`;
+  }).join('');
+}
+function openAltGroupEditor(id){
+  editingAltGroupId=id||null;
+  const g=id?loadAltGroups()[id]:null;
+  const items=loadItems();
+  document.getElementById('altGroupEditorTitle').textContent=g?'Edit group':'Add alternating group';
+  document.getElementById('agName').value=g?g.label:'';
+  const current=new Set(g?(g.itemIds||[]):[]);
+  const box=document.getElementById('agItemsBox');
+  box.innerHTML=items.map(it=>`
+    <label style="display:flex;align-items:center;gap:8px;background:var(--surface);padding:8px 10px;border-radius:8px;cursor:pointer;font-size:12px">
+      <input type="checkbox" value="${it.id}" ${current.has(it.id)?'checked':''} style="accent-color:var(--green)">
+      <span class="item-row-icon ${it.color||'ic-blue'}" style="width:24px;height:24px;font-size:13px">${it.icon||'💊'}</span>
+      <span>${escapeHtml(it.name)}</span>
+    </label>`).join('');
+  document.getElementById('agDeleteBtn').style.display=id?'inline-block':'none';
+  document.getElementById('altGroupEditorBg').classList.add('open');
+}
+function closeAltGroupEditor(){document.getElementById('altGroupEditorBg').classList.remove('open');editingAltGroupId=null;}
+document.getElementById('altGroupEditorBg').addEventListener('click',e=>{if(e.target.id==='altGroupEditorBg')closeAltGroupEditor();});
+function saveAltGroupEditor(){
+  const label=document.getElementById('agName').value.trim();
+  if(!label){alert('Group label is required');return;}
+  const selected=[...document.querySelectorAll('#agItemsBox input:checked')].map(cb=>cb.value);
+  if(selected.length<2){alert('Pick at least 2 items for an alternating group');return;}
+  const groups=loadAltGroups();
+  let id=editingAltGroupId;
+  if(!id){id=label.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'grp';let base=id,n=1;while(groups[id]){id=base+'-'+(++n);}}
+  const existing=groups[id]||{};
+  groups[id]={label, itemIds:selected, currentPick:existing.currentPick&&selected.includes(existing.currentPick)?existing.currentPick:selected[0]};
+  saveAltGroups(groups);closeAltGroupEditor();renderAltGroupList();render();toast('Saved');
+}
+function deleteAltGroup(){
+  if(!editingAltGroupId)return;
+  if(!confirm('Delete this group? Items in it will all show every day again.'))return;
+  const groups=loadAltGroups();delete groups[editingAltGroupId];saveAltGroups(groups);
+  closeAltGroupEditor();renderAltGroupList();render();toast('Deleted');
+}
+
+/* --------------------- TABS --------------------- */
+let historyPollInterval=null;
 function showTab(tab){
   ['today','history','settings'].forEach(t=>{
     document.getElementById(t+'View').style.display=t===tab?'block':'none';
     document.getElementById('tab'+t[0].toUpperCase()+t.slice(1)).classList.toggle('active',t===tab);
   });
-  // Clear any existing poll
   if(historyPollInterval){clearInterval(historyPollInterval);historyPollInterval=null;}
-  if(tab==='history'){
-    renderMonthCal();renderCompliance();renderMissedLog();
-    // Poll every 500ms so ticking items on Today (if user switches back) updates History live
-    // Also handles any external state change
-    historyPollInterval=setInterval(()=>{renderMonthCal();renderCompliance();renderMissedLog();},500);
-  }
-  if(tab==='settings'){loadSettingsUI();updateSerumPickerUI();}
+  if(tab==='history'){renderMonthCal();renderCompliance();renderMissedLog();historyPollInterval=setInterval(()=>{renderMonthCal();renderCompliance();renderMissedLog();},500);}
+  if(tab==='settings'){loadSettingsUI();renderItemList();renderCourseList();renderAltGroupList();}
 }
 
 function loadSettingsUI(){
-  const times=JSON.parse(localStorage.getItem('notifTimes')||'{"morning":"08:30","afternoon":"13:00","night":"22:00"}');
+  const times=lsGet('notifTimes', {morning:"08:30",afternoon:"13:00",night:"22:00"});
   document.getElementById('timeMorning').value=times.morning;document.getElementById('timeAfternoon').value=times.afternoon;document.getElementById('timeNight').value=times.night;
-  const c=loadCourses();
-  document.getElementById('startClingen').value=c.clingen||APP_START_STR;
-  document.getElementById('startCanesten').value=c.canesten||APP_START_STR;
-  document.getElementById('start30day').value=c.meds30||APP_START_STR;
+  document.getElementById('profileName').value=getProfile().name;
+  renderPushStatus();
 }
-function saveTimes(){const times={morning:document.getElementById('timeMorning').value,afternoon:document.getElementById('timeAfternoon').value,night:document.getElementById('timeNight').value};localStorage.setItem('notifTimes',JSON.stringify(times));scheduleNotifications();heartbeat();alert('Reminder times saved!');}
-function saveCourseSettings(){const c={clingen:document.getElementById('startClingen').value,canesten:document.getElementById('startCanesten').value,meds30:document.getElementById('start30day').value};localStorage.setItem('courses',JSON.stringify(c));alert('Course dates saved!');renderRefillAlerts();render();}
+function saveTimes(){const times={morning:document.getElementById('timeMorning').value,afternoon:document.getElementById('timeAfternoon').value,night:document.getElementById('timeNight').value};lsSet('notifTimes', times);bumpAndSync();scheduleNotifications();heartbeat();toast('Reminder times saved');}
 
-function toggleTheme(){document.body.classList.toggle('light');const light=document.body.classList.contains('light');localStorage.setItem('theme',light?'light':'dark');document.getElementById('themeBtn').textContent=light?'🌙':'☀️';document.getElementById('themeColorMeta').content=light?'#f5f7f5':'#0f1a14';}
-if(localStorage.getItem('theme')==='light'){document.body.classList.add('light');document.getElementById('themeBtn').textContent='🌙';}
+function toggleTheme(){document.body.classList.toggle('light');const light=document.body.classList.contains('light');localStorage.setItem('theme', light?'light':'dark');document.getElementById('themeBtn').textContent=light?'🌙':'☀️';document.getElementById('themeColorMeta').content=light?'#f5f7f5':'#0f1a14';bumpAndSync();}
+if(localStorage.getItem('theme')==='light'){document.body.classList.add('light');}
 
 function snooze(mins){document.getElementById('snoozeBanner').style.display='none';setTimeout(()=>{document.getElementById('snoozeBanner').style.display='flex';},mins*60000);}
+function getTimes(){return lsGet('notifTimes', {morning:"08:30",afternoon:"13:00",night:"22:00"});}
 
-function getTimes(){return JSON.parse(localStorage.getItem('notifTimes')||'{"morning":"08:30","afternoon":"13:00","night":"22:00"}');}
+/* --------------------- NATIVE PUSH (iOS-aware) --------------------- */
+function isIOS(){return /iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;}
+function isStandalonePWA(){return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;}
+function notifSupported(){return 'Notification' in window && 'serviceWorker' in navigator;}
+function pushSupported(){return notifSupported() && 'PushManager' in window;}
 
-function requestNotifPermission(){
-  if(!('Notification'in window)){
-    alert('Notifications are not supported in this browser.\n\nOn iPhone: make sure you have added this app to your Home Screen via Safari → Share → Add to Home Screen, then open it from the home screen icon and try again.');
-    return;
+function urlB64ToUint8Array(b64){const pad='='.repeat((4-b64.length%4)%4);const base=(b64+pad).replace(/-/g,'+').replace(/_/g,'/');const raw=atob(base);const arr=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)arr[i]=raw.charCodeAt(i);return arr;}
+
+function renderPushStatus(){
+  const statusEl=document.getElementById('pushStatus');
+  const helpEl=document.getElementById('pushHelpText');
+  const enableBtn=document.getElementById('pushEnableBtn');
+  const testBtn=document.getElementById('pushTestBtn');
+  const disableBtn=document.getElementById('pushDisableBtn');
+  if(!statusEl)return;
+  if(!notifSupported()){
+    statusEl.className='drive-status error';statusEl.innerHTML='<span class="drive-dot err"></span> Notifications not supported in this browser';
+    enableBtn.style.display='none';testBtn.style.display='none';disableBtn.style.display='none';return;
   }
-  Notification.requestPermission().then(p=>{
+  const iosNeedsInstall = isIOS() && !isStandalonePWA();
+  if(iosNeedsInstall){
+    statusEl.className='drive-status';statusEl.innerHTML='<span class="drive-dot"></span> iPhone: install to Home Screen first';
+    helpEl.innerHTML='<strong>iPhone setup:</strong> In Safari tap Share → Add to Home Screen. Then open Nilomi from the home-screen icon — notifications work in iOS 16.4+.';
+    enableBtn.style.display='none';testBtn.style.display='none';disableBtn.style.display='none';return;
+  }
+  const perm=Notification.permission;
+  if(perm==='granted'){
+    statusEl.className='drive-status connected';statusEl.innerHTML='<span class="drive-dot on"></span> Push enabled — reminders fire at your saved times';
+    enableBtn.style.display='none';testBtn.style.display='inline-block';disableBtn.style.display='inline-block';
+  } else if(perm==='denied'){
+    statusEl.className='drive-status error';statusEl.innerHTML='<span class="drive-dot err"></span> Blocked — enable in iPhone Settings → Nilomi → Notifications';
+    enableBtn.style.display='none';testBtn.style.display='none';disableBtn.style.display='none';
+  } else {
+    statusEl.className='drive-status';statusEl.innerHTML='<span class="drive-dot"></span> Not enabled yet';
+    enableBtn.style.display='inline-block';testBtn.style.display='none';disableBtn.style.display='none';
+  }
+}
+
+async function enablePush(){
+  if(!notifSupported()){alert('Notifications are not supported. On iPhone: add to Home Screen in Safari, then open from the icon.');return;}
+  try{
+    const perm=await Notification.requestPermission();
     document.getElementById('notifBanner').style.display='none';
-    if(p==='granted'){scheduleNotifications();heartbeat();}
-    else alert('Notification permission denied.\n\nTo enable: Settings → Safari → Nilomi → Notifications → Allow');
-  });
+    if(perm!=='granted'){alert('Notification permission denied. You can change this in iPhone Settings → Nilomi → Notifications.');renderPushStatus();return;}
+    // Subscribe to Push if VAPID key is configured
+    if(pushSupported() && VAPID_PUBLIC_KEY){
+      const reg=await navigator.serviceWorker.ready;
+      const existing=await reg.pushManager.getSubscription();
+      if(!existing){
+        try{
+          const sub=await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:urlB64ToUint8Array(VAPID_PUBLIC_KEY)});
+          lsSet('pushSub', sub.toJSON());
+        }catch(e){console.warn('PushManager.subscribe failed (server-less pushes will still work):',e);}
+      }
+    }
+    scheduleNotifications();heartbeat();renderPushStatus();toast('Notifications enabled');
+  }catch(e){console.error(e);alert('Could not enable: '+e.message);}
 }
 
-function scheduleNotifications(){
+async function disablePush(){
   if(!('serviceWorker'in navigator))return;
-  const times=getTimes();
-  navigator.serviceWorker.ready.then(reg=>{
-    if(reg.active)reg.active.postMessage({type:'SCHEDULE',times});
-  });
+  try{
+    const reg=await navigator.serviceWorker.ready;
+    const sub=await reg.pushManager.getSubscription();
+    if(sub)await sub.unsubscribe();
+    if(reg.active)reg.active.postMessage({type:'CANCEL_ALL'});
+    lsSet('pushSub', null);
+    toast('Push disabled — browser permission still granted');
+    renderPushStatus();
+  }catch(e){console.error(e);}
 }
 
-// Heartbeat: re-anchor SW timers every time the app becomes visible
-// Critical for iOS which suspends the SW between sessions
-function heartbeat(){
-  if(!('serviceWorker'in navigator))return;
-  const times=getTimes();
-  navigator.serviceWorker.ready.then(reg=>{
-    if(reg.active)reg.active.postMessage({type:'HEARTBEAT',times});
-  });
+async function testPush(){
+  if(!notifSupported()||Notification.permission!=='granted'){alert('Enable notifications first.');return;}
+  try{
+    const reg=await navigator.serviceWorker.ready;
+    reg.showNotification('Nilomi test 🌿', {
+      body:'If you see this, push reminders are working.',
+      icon:'icon-192.svg', badge:'icon-192.svg',
+      tag:'test', vibrate:[120,60,120], requireInteraction:false,
+      data:{source:'test', url:location.href}
+    });
+  }catch(e){alert('Test failed: '+e.message);}
 }
+
+// Legacy alias so the banner "Allow" button still works
+function requestNotifPermission(){return enablePush();}
+
+function scheduleNotifications(){if(!('serviceWorker'in navigator))return;const times=getTimes();navigator.serviceWorker.ready.then(reg=>{if(reg.active)reg.active.postMessage({type:'SCHEDULE',times});});}
+function heartbeat(){if(!('serviceWorker'in navigator))return;const times=getTimes();navigator.serviceWorker.ready.then(reg=>{if(reg.active)reg.active.postMessage({type:'HEARTBEAT',times});});}
 document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='visible'&&'Notification'in window&&Notification.permission==='granted')heartbeat();
+  if(document.visibilityState==='visible'){
+    if('Notification'in window&&Notification.permission==='granted')heartbeat();
+    // Pull from Drive on focus
+    if(driveState.connected) drivePull();
+  }
 });
 
-// Midnight summary — send at 23:55, list what was missed
 function checkMidnightSummary(){
-  const now=new Date();
-  const h=now.getHours(),m=now.getMinutes();
+  const now=new Date();const h=now.getHours(),m=now.getMinutes();
   if(h===23&&m>=55){
-    const ITEMS=getItems().filter(i=>!i.noCount);
-    const arr=[...done];
+    const ITEMS=getItemsForToday().filter(i=>!i.noCount);const arr=[...done];
     const missed=ITEMS.filter(i=>!arr.includes(i.id)).map(i=>i.name);
     if('serviceWorker'in navigator&&'Notification'in window&&Notification.permission==='granted'){
-      navigator.serviceWorker.ready.then(reg=>{
-        if(reg.active)reg.active.postMessage({type:'SEND_SUMMARY',missed});
-      });
+      navigator.serviceWorker.ready.then(reg=>{if(reg.active)reg.active.postMessage({type:'SEND_SUMMARY',missed});});
     }
   }
 }
-// Check every minute
 setInterval(checkMidnightSummary,60000);
 
 let deferredPrompt=null;
@@ -1174,42 +1896,310 @@ window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPro
 window.addEventListener('appinstalled',()=>{document.getElementById('installBanner').style.display='none';});
 function installPWA(){if(!deferredPrompt)return;deferredPrompt.prompt();deferredPrompt.userChoice.then(()=>{deferredPrompt=null;});}
 
+function wipeLocal(){
+  if(!confirm('Erase ALL local data? If Drive is connected, you can re-sync afterwards.'))return;
+  const keep={};
+  // Keep drive config so we don't lose connection
+  ['drive.clientId','drive.fileId','drive.connected'].forEach(k=>{const v=localStorage.getItem(k);if(v)keep[k]=v;});
+  localStorage.clear();
+  Object.entries(keep).forEach(([k,v])=>localStorage.setItem(k,v));
+  location.reload();
+}
+
+/* --------------------- TOAST --------------------- */
+let toastTimer=null;
+function toast(text){
+  const el=document.getElementById('syncToast');const t=document.getElementById('syncToastText');
+  t.textContent=text;el.classList.add('show');
+  if(toastTimer)clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),1800);
+}
+
+/* ==================================================
+ * GOOGLE DRIVE SYNC
+ * Scope: drive.file (app can only access files it creates)
+ * File:  nilomi-data.json  (single JSON blob of all state)
+ * Model: last-write-wins based on lastModified timestamp
+ * ================================================== */
+/* ---- CONFIGURE ONCE (optional): paste your Google OAuth Client ID here ----
+ * Deploy flow: edit this line with your Client ID, commit, push. Sync auto-connects silently.
+ * Alternative: visit <app-url>#setup-drive in a browser to set it via prompt (stored in localStorage).
+ */
+const DRIVE_CLIENT_ID = '';
+/* VAPID public key (optional) — only needed if you want server-pushed notifications.
+ * Without this, iOS PWA still gets local reminders via the service worker from open tab.
+ * Generate with: npx web-push generate-vapid-keys
+ */
+const VAPID_PUBLIC_KEY = '';
+const DRIVE_FILE_NAME='nilomi-data.json';
+const DRIVE_SCOPE='https://www.googleapis.com/auth/drive.file';
+const driveState={
+  connected:false,
+  fileId:lsGet('drive.fileId', null),
+  tokenClient:null,
+  accessToken:null,
+  tokenExpiry:0,
+  lastSync:lsGet('drive.lastSync', 0),
+  syncing:false,
+  initing:false,
+  error:null,
+};
+let gapiReady=false, gsiReady=false;
+
+function whenApisReady(cb){
+  const check=()=>{
+    if(window.gapi && window.google && window.google.accounts && window.google.accounts.oauth2){
+      if(!gapiReady){gapi.load('client',()=>{gapi.client.init({discoveryDocs:['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']}).then(()=>{gapiReady=true;gsiReady=true;cb();});});}
+      else cb();
+    } else setTimeout(check,200);
+  };
+  check();
+}
+
+function renderDriveStatus(){
+  const el=document.getElementById('driveStatus');if(!el)return;
+  const clientId=lsGet('drive.clientId','');
+  const connectBtn=document.getElementById('driveConnectBtn');
+  const syncBtn=document.getElementById('driveSyncNowBtn');
+  const disBtn=document.getElementById('driveDisconnectBtn');
+  if(driveState.error){el.className='drive-status error';el.innerHTML=`<span class="drive-dot err"></span> ${escapeHtml(driveState.error)}`;}
+  else if(driveState.syncing){el.className='drive-status';el.innerHTML='<span class="drive-dot syncing"></span> Syncing…';}
+  else if(driveState.connected){
+    const last=driveState.lastSync?new Date(driveState.lastSync).toLocaleString('en-IN',{hour:'numeric',minute:'2-digit',day:'numeric',month:'short'}):'just now';
+    el.className='drive-status connected';el.innerHTML=`<span class="drive-dot on"></span> Connected · last synced ${last}`;
+  } else if(clientId){el.className='drive-status';el.innerHTML='<span class="drive-dot"></span> Not connected — press Connect to authorise.';}
+  else{el.className='drive-status';el.innerHTML='<span class="drive-dot"></span> Enter your Client ID to enable sync.';}
+  connectBtn.style.display=driveState.connected?'none':'inline-block';
+  syncBtn.style.display=driveState.connected?'inline-block':'none';
+  disBtn.style.display=driveState.connected?'inline-block':'none';
+}
+
+function driveInitTokenClient(clientId){
+  if(!window.google||!window.google.accounts||!window.google.accounts.oauth2){
+    driveState.error='Google auth library still loading — try again in a moment.';renderDriveStatus();return false;
+  }
+  driveState.tokenClient=google.accounts.oauth2.initTokenClient({
+    client_id:clientId,
+    scope:DRIVE_SCOPE,
+    callback:(resp)=>{
+      if(resp.error){driveState.error='Auth failed: '+resp.error;driveState.connected=false;renderDriveStatus();return;}
+      driveState.accessToken=resp.access_token;
+      driveState.tokenExpiry=Date.now()+((resp.expires_in||3600)*1000)-30000;
+      gapi.client.setToken({access_token:resp.access_token});
+      driveState.connected=true;driveState.error=null;
+      lsSet('drive.connected', true);
+      renderDriveStatus();
+      // On first connect, do a pull; if nothing remote, push local
+      driveFindFile().then(()=>drivePull()).then(()=>{if(!driveState.fileId)drivePush();});
+    },
+  });
+  return true;
+}
+
+function driveConnect(providedClientId){
+  const clientId=(providedClientId||DRIVE_CLIENT_ID||lsGet('drive.clientId','')||'').trim();
+  if(!clientId){return false;}
+  lsSet('drive.clientId', clientId);
+  whenApisReady(()=>{
+    if(!driveInitTokenClient(clientId))return;
+    driveState.tokenClient.requestAccessToken({prompt:'consent'});
+  });
+  return true;
+}
+// Hidden setup — visit #setup-drive on the app URL to configure a Client ID without any UI in Settings.
+function maybeDriveHashSetup(){
+  if(location.hash==='#setup-drive'){
+    const existing=lsGet('drive.clientId','');
+    const input=prompt('Paste your Google OAuth Client ID (will be saved locally and auto-connect on load):', existing||'');
+    if(input){driveConnect(input.trim());alert('Saved. Drive will connect silently from now on.');}
+    history.replaceState(null,'',location.pathname+location.search);
+  }
+}
+
+function driveDisconnect(){
+  driveState.connected=false;driveState.accessToken=null;driveState.fileId=null;
+  lsSet('drive.connected', false);lsSet('drive.fileId', null);
+  if(window.google&&google.accounts&&driveState.accessToken){try{google.accounts.oauth2.revoke(driveState.accessToken,()=>{});}catch(e){}}
+  renderDriveStatus();toast('Disconnected from Drive');
+}
+
+async function driveEnsureToken(){
+  if(!driveState.connected)return false;
+  if(driveState.accessToken && Date.now()<driveState.tokenExpiry)return true;
+  // Silent refresh
+  return new Promise((resolve)=>{
+    const clientId=lsGet('drive.clientId','');
+    if(!driveInitTokenClient(clientId)){resolve(false);return;}
+    const origCb=driveState.tokenClient.callback;
+    driveState.tokenClient.callback=(resp)=>{
+      if(resp.error){driveState.error='Token refresh failed';resolve(false);return;}
+      driveState.accessToken=resp.access_token;driveState.tokenExpiry=Date.now()+((resp.expires_in||3600)*1000)-30000;
+      gapi.client.setToken({access_token:resp.access_token});
+      driveState.tokenClient.callback=origCb;resolve(true);
+    };
+    driveState.tokenClient.requestAccessToken({prompt:''});
+  });
+}
+
+async function driveFindFile(){
+  if(driveState.fileId)return driveState.fileId;
+  const ok=await driveEnsureToken();if(!ok)return null;
+  try{
+    const res=await gapi.client.drive.files.list({q:`name='${DRIVE_FILE_NAME}' and trashed=false`, fields:'files(id,name,modifiedTime)'});
+    const files=res.result.files||[];
+    if(files.length){driveState.fileId=files[0].id;lsSet('drive.fileId', driveState.fileId);}
+    return driveState.fileId;
+  }catch(e){driveState.error='Drive list failed';console.error(e);return null;}
+}
+
+function collectLocalState(){
+  const state={version:1, lastModified:lsGet('lastModified', Date.now()), items:loadItems(), courses:loadCourses(), altGroups:loadAltGroups(), notes:lsGet('notes',{}), notifTimes:lsGet('notifTimes',{}), profile:getProfile(), theme:localStorage.getItem('theme')||'dark', celebShown:lsGet('celebShown',{}), history:{}};
+  // Gather all done_YYYY-MM-DD keys
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(k&&k.startsWith('done_')){try{state.history[k.slice(5)]=JSON.parse(localStorage.getItem(k));}catch(e){}}
+  }
+  // Include today's live done set
+  state.history[todayStr]=[...done];
+  return state;
+}
+
+function applyRemoteState(state){
+  if(!state||typeof state!=='object')return;
+  if(state.items)lsSet('items', state.items);
+  if(state.courses)lsSet('courses', state.courses);
+  if(state.altGroups)lsSet('altGroups', state.altGroups);
+  if(state.notes){lsSet('notes', state.notes);notes=state.notes;}
+  if(state.notifTimes)lsSet('notifTimes', state.notifTimes);
+  if(state.profile)lsSet('profile', state.profile);
+  if(state.celebShown)lsSet('celebShown', state.celebShown);
+  if(state.history&&typeof state.history==='object'){
+    // Remove existing done_ keys then apply remote
+    const toDelete=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith('done_'))toDelete.push(k);}
+    toDelete.forEach(k=>localStorage.removeItem(k));
+    Object.entries(state.history).forEach(([ds,arr])=>{try{localStorage.setItem('done_'+ds, JSON.stringify(arr));}catch(e){}});
+    // Rebuild today's live set
+    done=new Set(lsGet(doneKey(today), []));
+  }
+  if(state.theme){localStorage.setItem('theme', state.theme);document.body.classList.toggle('light', state.theme==='light');document.getElementById('themeBtn').textContent=state.theme==='light'?'🌙':'☀️';document.getElementById('themeColorMeta').content=state.theme==='light'?'#f5f7f5':'#0f1a14';}
+  if(typeof state.lastModified==='number')lsSet('lastModified', state.lastModified);
+  renderProfile();render();
+  if(document.getElementById('settingsView').style.display==='block'){renderItemList();renderCourseList();renderAltGroupList();}
+}
+
+async function drivePull(){
+  if(!driveState.connected||driveState.syncing)return;
+  const fileId=await driveFindFile();
+  if(!fileId)return;
+  const ok=await driveEnsureToken();if(!ok)return;
+  driveState.syncing=true;renderDriveStatus();
+  try{
+    const res=await gapi.client.drive.files.get({fileId, alt:'media'});
+    const remote=typeof res.body==='string'?JSON.parse(res.body):res.result;
+    const localLM=lsGet('lastModified', 0);
+    if(remote && typeof remote.lastModified==='number' && remote.lastModified>localLM){
+      applyRemoteState(remote);
+      toast('Pulled from Drive');
+    }
+    driveState.lastSync=Date.now();lsSet('drive.lastSync', driveState.lastSync);
+  }catch(e){driveState.error='Drive pull failed';console.error(e);}
+  driveState.syncing=false;renderDriveStatus();
+}
+
+async function drivePush(){
+  if(!driveState.connected||driveState.syncing)return;
+  const ok=await driveEnsureToken();if(!ok)return;
+  driveState.syncing=true;renderDriveStatus();
+  const state=collectLocalState();
+  state.lastModified=Date.now();
+  lsSet('lastModified', state.lastModified);
+  const body=JSON.stringify(state);
+  try{
+    const token=driveState.accessToken;
+    let url, method;
+    const metadata={name:DRIVE_FILE_NAME, mimeType:'application/json'};
+    if(driveState.fileId){
+      // Update existing via multipart
+      url='https://www.googleapis.com/upload/drive/v3/files/'+driveState.fileId+'?uploadType=multipart';
+      method='PATCH';
+    } else {
+      url='https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+      method='POST';
+    }
+    const boundary='-------NILOMI-'+Math.random().toString(36).slice(2);
+    const multipartBody=`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${boundary}--`;
+    const resp=await fetch(url, {method, headers:{'Authorization':'Bearer '+token, 'Content-Type':'multipart/related; boundary='+boundary}, body:multipartBody});
+    if(!resp.ok)throw new Error('HTTP '+resp.status);
+    const data=await resp.json();
+    if(data.id){driveState.fileId=data.id;lsSet('drive.fileId', data.id);}
+    driveState.lastSync=Date.now();lsSet('drive.lastSync', driveState.lastSync);
+    driveState.error=null;
+  }catch(e){driveState.error='Drive push failed';console.error(e);}
+  driveState.syncing=false;renderDriveStatus();
+}
+
+function driveSyncNow(){drivePull().then(()=>drivePush()).then(()=>toast('Synced'));}
+
+/* Debounced push triggered by any local change */
+let pushDebounceTimer=null;
+function bumpAndSync(){
+  lsSet('lastModified', Date.now());
+  if(!driveState.connected)return;
+  if(pushDebounceTimer)clearTimeout(pushDebounceTimer);
+  pushDebounceTimer=setTimeout(()=>drivePush(), 3000);
+}
+
+
+/* --------------------- INIT --------------------- */
 const h=today.getHours();
 document.getElementById('timeOfDay').textContent=h<12?'morning':h<17?'afternoon':'evening';
 document.getElementById('headerDate').textContent=today.toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+renderProfile();
+if(localStorage.getItem('theme')==='light'){document.body.classList.add('light');document.getElementById('themeBtn').textContent='🌙';}
+else document.getElementById('themeBtn').textContent='☀️';
 
-// Show notification banner with iPhone context
-if('Notification'in window&&Notification.permission==='default'){
-  document.getElementById('notifBanner').style.display='flex';
-} else if('Notification'in window&&Notification.permission==='granted'){
-  // Re-anchor timers on every app open
-  heartbeat();
+// Show notif banner if permission not yet decided and we're in an environment that can grant it
+if('Notification'in window){
+  const iosNotInstalled=isIOS()&&!isStandalonePWA();
+  if(iosNotInstalled){
+    const b=document.getElementById('notifBanner');
+    if(b){b.querySelector('.banner-text').innerHTML='<strong>Enable iPhone reminders</strong>Install to Home Screen first, then open from the icon.';b.style.display='flex';}
+  } else if(Notification.permission==='default'){document.getElementById('notifBanner').style.display='flex';}
+  else if(Notification.permission==='granted'){heartbeat();}
 }
 
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').then(reg => {
-
-    // Check for updates every time the app is opened
+if('serviceWorker'in navigator){
+  navigator.serviceWorker.register('sw.js').then(reg=>{
     reg.update();
-
-    // When a new SW is waiting, activate it immediately
-    reg.addEventListener('updatefound', () => {
-      const newWorker = reg.installing;
-      newWorker.addEventListener('statechange', () => {
-        if (newWorker.state === 'activated') {
-          // New version installed — reload silently to get fresh content
-          window.location.reload();
-        }
-      });
-    });
-
-  }).catch(() => {});
-
-  // If a new SW takes control mid-session, reload to get the latest app
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    window.location.reload();
-  });
+    reg.addEventListener('updatefound',()=>{const nw=reg.installing;nw.addEventListener('statechange',()=>{if(nw.state==='activated')window.location.reload();});});
+  }).catch(()=>{});
+  navigator.serviceWorker.addEventListener('controllerchange',()=>window.location.reload());
 }
+
+// Hidden #setup-drive hash handler
+maybeDriveHashSetup();
+window.addEventListener('hashchange', maybeDriveHashSetup);
+
+// Auto-reconnect to Drive if configured (hardcoded constant takes precedence over localStorage)
+(function tryAutoReconnectDrive(){
+  const clientId=(DRIVE_CLIENT_ID||lsGet('drive.clientId','')||'').trim();
+  if(DRIVE_CLIENT_ID)lsSet('drive.clientId', DRIVE_CLIENT_ID);
+  const wasConnected=lsGet('drive.connected', false) || !!DRIVE_CLIENT_ID;
+  if(!clientId)return;
+  whenApisReady(()=>{
+    if(!driveInitTokenClient(clientId))return;
+    const origCb=driveState.tokenClient.callback;
+    driveState.tokenClient.callback=(resp)=>{
+      if(resp.error){driveState.connected=false;driveState.error='Reconnect — tap Connect again';renderDriveStatus();return;}
+      driveState.accessToken=resp.access_token;
+      driveState.tokenExpiry=Date.now()+((resp.expires_in||3600)*1000)-30000;
+      gapi.client.setToken({access_token:resp.access_token});
+      driveState.connected=true;driveState.error=null;renderDriveStatus();
+      driveFindFile().then(()=>drivePull());
+      driveState.tokenClient.callback=origCb;
+    };
+    try{driveState.tokenClient.requestAccessToken({prompt:''});}catch(e){}
+  });
+})();
 
 render();
 </script>
