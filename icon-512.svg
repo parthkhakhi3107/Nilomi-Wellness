@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="44" fill="#0f1a14"/>
+  <circle cx="96" cy="82" r="34" fill="none" stroke="#4ade80" stroke-width="6"/>
+  <line x1="96" y1="48" x2="96" y2="38" stroke="#4ade80" stroke-width="6" stroke-linecap="round"/>
+  <line x1="96" y1="116" x2="96" y2="126" stroke="#4ade80" stroke-width="6" stroke-linecap="round"/>
+  <line x1="62" y1="82" x2="52" y2="82" stroke="#4ade80" stroke-width="6" stroke-linecap="round"/>
+  <line x1="130" y1="82" x2="140" y2="82" stroke="#4ade80" stroke-width="6" stroke-linecap="round"/>
+  <line x1="71.5" y1="57.5" x2="64.4" y2="50.4" stroke="#4ade80" stroke-width="6" stroke-linecap="round"/>
+  <line x1="120.5" y1="106.5" x2="127.6" y2="113.6" stroke="#4ade80" stroke-width="6" stroke-linecap="round"/>
+  <line x1="120.5" y1="57.5" x2="127.6" y2="50.4" stroke="#4ade80" stroke-width="6" stroke-linecap="round"/>
+  <line x1="71.5" y1="106.5" x2="64.4" y2="113.6" stroke="#4ade80" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="96" cy="82" r="14" fill="#4ade80"/>
+  <rect x="80" y="128" width="32" height="10" rx="5" fill="#4ade80" opacity="0.6"/>
+  <rect x="86" y="140" width="20" height="8" rx="4" fill="#4ade80" opacity="0.4"/>
+  <text x="96" y="172" text-anchor="middle" font-size="13" font-family="Georgia,serif" fill="#7a9a7a" letter-spacing="1">NILOMI</text>
+</svg>
