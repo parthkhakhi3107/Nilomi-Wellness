@@ -174,12 +174,13 @@ body{padding-bottom:110px}
 .missed-filter{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
 .mf-btn{background:var(--surface);border:.5px solid var(--border);border-radius:20px;padding:4px 11px;font-size:11px;cursor:pointer;color:var(--muted);font-family:var(--font-body);transition:all .15s}
 .mf-btn.active{background:var(--green-dim);border-color:rgba(74,222,128,.3);color:var(--green-soft)}
-.missed-item{display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:.5px solid var(--border)}
-.missed-item:last-child{border-bottom:none}
-.missed-item-left{flex:1}
-.missed-item-name{font-size:12px;color:var(--text);font-weight:500}
-.missed-item-date{font-size:10px;color:var(--muted);margin-top:1px}
-.missed-badge{font-size:10px;padding:2px 7px;border-radius:20px;background:var(--rose-dim);color:var(--rose);flex-shrink:0;margin-top:1px}
+.missed-item{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:11px;line-height:1.3}
+.missed-item + .missed-item{border-top:.5px solid var(--border)}
+.missed-item-dot{width:6px;height:6px;border-radius:50%;background:var(--rose);flex-shrink:0}
+.missed-item-dot.pending{background:var(--amber)}
+.missed-item-name{color:var(--text);font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.missed-item-date{font-size:10px;color:var(--muted);flex-shrink:0}
+.missed-item-count{font-size:9px;color:var(--faint);margin-left:4px}
 .empty-state{text-align:center;padding:20px 0;font-size:12px;color:var(--muted)}
 .export-card{background:var(--card);border:.5px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px}
 .export-title{font-size:13px;font-weight:500;color:var(--text);margin-bottom:10px}
@@ -357,11 +358,11 @@ body.light .tabbar{background:rgba(245,247,245,.93)}
 <!-- TODAY -->
 <div id="todayView">
   <div id="refillAlerts"></div>
-  <div id="altGroupsHost"></div>
   <div class="section"><div class="section-head"><span class="section-label">☀ Morning</span><span class="section-count" id="cntMorning"></span></div><div id="listMorning"></div></div>
   <div class="section"><div class="section-head"><span class="section-label">🌤 Afternoon</span><span class="section-count" id="cntAfternoon"></span></div><div id="listAfternoon"></div></div>
   <div class="section"><div class="section-head"><span class="section-label">🌙 Bedtime</span><span class="section-count" id="cntNight"></span></div><div id="listNight"></div></div>
   <div class="section"><div class="section-head"><span class="section-label">💧 As needed</span><span class="section-count" id="cntAsNeeded"></span></div><div id="listAsNeeded"></div></div>
+  <div id="altGroupsHost"></div>
   <div class="all-done" id="allDone"><div class="all-done-icon">🌿</div><div class="all-done-title">All done!</div><div class="all-done-sub">You've completed today's full routine.<br>Keep it up.</div></div>
 </div>
 
@@ -668,8 +669,22 @@ function ymd(d){
 }
 let today    = effectiveNow();
 let todayStr = ymd(today);
-const APP_START=new Date('2026-04-06');
-const APP_START_STR='2026-04-06';
+const APP_START_STR='2026-04-17';  // history begins from this date — older logs auto-purged
+const APP_START=new Date(APP_START_STR+'T00:00:00');
+
+/* One-shot migration: purge any done_YYYY-MM-DD keys from before APP_START_STR.
+   Runs every load but is a no-op once the stale keys are gone. */
+(function purgeOldHistory(){
+  const toRemove=[];
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(k && k.startsWith('done_')){
+      const ds=k.slice(5);
+      if(ds < APP_START_STR) toRemove.push(k);
+    }
+  }
+  toRemove.forEach(k=>localStorage.removeItem(k));
+})();
 
 /* --------------------- DEFAULT DATA (seeds) --------------------- */
 const DEFAULT_COURSES = {
@@ -1210,7 +1225,12 @@ function renderMissedLog(){
   }
   const el=document.getElementById('missedList');
   if(!missed.length){el.innerHTML='<div class="empty-state">No missed doses in this period 🎉</div>';return;}
-  el.innerHTML=missed.slice(0,50).sort((a,b)=>b.date-a.date).map(m=>`<div class="missed-item"><div class="missed-item-left"><div class="missed-item-name">${escapeHtml(m.name)}</div><div class="missed-item-date">${m.isToday?'Today (not yet done)':m.date.toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'})}${byName[m.name]>1?' · '+byName[m.name]+'x total':''}</div></div><span class="missed-badge">${m.isToday?'Pending':'Missed'}</span></div>`).join('');
+  el.innerHTML=missed.slice(0,50).sort((a,b)=>b.date-a.date).map(m=>{
+    const when = m.isToday ? 'today' : m.date.toLocaleDateString('en-IN',{day:'numeric',month:'short'});
+    const dotCls = m.isToday ? 'missed-item-dot pending' : 'missed-item-dot';
+    const count = byName[m.name]>1 ? `<span class="missed-item-count">×${byName[m.name]}</span>` : '';
+    return `<div class="missed-item"><span class="${dotCls}"></span><span class="missed-item-name">${escapeHtml(m.name)}${count}</span><span class="missed-item-date">${when}</span></div>`;
+  }).join('');
 }
 
 /* --------------------- EXPORT (Excel + PDF with charts & insights) --------------------- */
@@ -1522,138 +1542,278 @@ async function exportPDF(){
     const charts=await buildChartImages(data);
     const {jsPDF}=window.jspdf;
     const doc=new jsPDF({unit:'pt', format:'a4'});
-    const W=doc.internal.pageSize.getWidth();const H=doc.internal.pageSize.getHeight();
+    const W=doc.internal.pageSize.getWidth();
+    const H=doc.internal.pageSize.getHeight();
     const profile=getProfile();
-    let y=48;
 
-    // Header
-    doc.setFillColor(15,26,20);doc.rect(0,0,W,90,'F');
-    doc.setTextColor(232,240,232);doc.setFont('helvetica','bold');doc.setFontSize(26);
-    doc.text(profile.name+' — Wellness Report', 40, 48);
-    doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(122,154,122);
-    doc.text(`${today.toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}  ·  ${data.activeDays} active days`, 40, 68);
-    y=110;
+    /* ---- Unified palette ---- */
+    const C = {
+      ink:[28,38,32], muted:[110,128,115], faint:[170,186,172],
+      line:[220,230,222], lineSoft:[236,242,236],
+      accent:[22,163,74], accentDeep:[30,74,47], accentSoft:[220,245,228],
+      cream:[249,252,249], paper:[255,255,255],
+      good:[21,128,61], goodBg:[220,252,231],
+      warn:[146,64,14], warnBg:[254,243,199],
+      bad:[190,18,60],  badBg:[255,228,230],
+    };
+    const M = 48; // page margin
 
-    // Stat cards
-    const cardW=(W-120)/3;const cardH=70;
-    const stats=[['Current streak', data.streak, 'days'],['Best streak ever', data.best, 'days'],['Overall compliance', data.overall, '%']];
-    stats.forEach((s,i)=>{
-      const x=40+i*(cardW+20);
-      doc.setFillColor(245,247,245);doc.roundedRect(x,y,cardW,cardH,8,8,'F');
-      doc.setTextColor(90,122,90);doc.setFontSize(9);doc.setFont('helvetica','bold');doc.text(s[0].toUpperCase(), x+14, y+22);
-      doc.setTextColor(22,163,74);doc.setFontSize(30);doc.setFont('helvetica','bold');doc.text(String(s[1]), x+14, y+55);
-      doc.setTextColor(90,122,90);doc.setFontSize(10);doc.setFont('helvetica','normal');doc.text(s[2], x+14+doc.getTextWidth(String(s[1]))+6, y+55);
+    /* ---- Helpers ---- */
+    const setText = rgb => doc.setTextColor(rgb[0],rgb[1],rgb[2]);
+    const setFill = rgb => doc.setFillColor(rgb[0],rgb[1],rgb[2]);
+    const setDraw = rgb => doc.setDrawColor(rgb[0],rgb[1],rgb[2]);
+
+    function sectionHeading(title, subtitle){
+      if(yCur > H - 110){ doc.addPage(); yCur = M; }
+      // Accent bar on the left
+      setFill(C.accent); doc.rect(M, yCur-10, 3, 18, 'F');
+      setText(C.ink); doc.setFont('helvetica','bold'); doc.setFontSize(13);
+      doc.text(title, M+12, yCur+4);
+      if(subtitle){
+        setText(C.muted); doc.setFont('helvetica','normal'); doc.setFontSize(9);
+        doc.text(subtitle, M+12+doc.getTextWidth(title)+10, yCur+4);
+      }
+      yCur += 14;
+      setDraw(C.lineSoft); doc.setLineWidth(0.4);
+      doc.line(M, yCur, W-M, yCur);
+      yCur += 16;
+    }
+
+    function addChartImage(imgData, caption, maxHeight){
+      const props = doc.getImageProperties(imgData);
+      const cw = W - M*2;
+      let ch = (props.height * cw) / props.width;
+      if(maxHeight && ch > maxHeight) ch = maxHeight;
+      if(yCur + ch > H - 80){ doc.addPage(); yCur = M; }
+      // Subtle cream background behind chart
+      setFill(C.cream); doc.roundedRect(M-6, yCur-6, cw+12, ch+12, 6, 6, 'F');
+      doc.addImage(imgData, 'PNG', M, yCur, cw, ch);
+      yCur += ch + 6;
+      if(caption){
+        setText(C.faint); doc.setFont('helvetica','italic'); doc.setFontSize(8);
+        doc.text(caption, M, yCur+4);
+        yCur += 10;
+      }
+      yCur += 14;
+    }
+
+    let yCur = 0; // track current y
+
+    /* ---- Header block ---- */
+    setFill(C.accentDeep); doc.rect(0,0,W,104,'F');
+    // Thin accent underline under header
+    setFill(C.accent); doc.rect(0,104,W,3,'F');
+
+    setText([240,248,240]); doc.setFont('helvetica','bold'); doc.setFontSize(24);
+    doc.text('Wellness Report', M, 48);
+    doc.setFont('helvetica','normal'); doc.setFontSize(11);
+    setText([180,210,190]);
+    doc.text(profile.name, M, 68);
+
+    // Right-aligned date + active days
+    doc.setFont('helvetica','normal'); doc.setFontSize(9);
+    setText([180,210,190]);
+    const dateStr = today.toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'});
+    const metaR = `${dateStr}   ·   ${data.activeDays} active days`;
+    doc.text(metaR, W - M, 48, {align:'right'});
+    doc.setFontSize(9);
+    doc.text('Generated by Nilomi', W - M, 64, {align:'right'});
+
+    yCur = 138;
+
+    /* ---- Hero stat row ---- */
+    const gap = 14;
+    const cardW = (W - M*2 - gap*2) / 3;
+    const cardH = 78;
+    const stats = [
+      {label:'Current streak', value:data.streak, unit:'days', tone:C.accent},
+      {label:'Best streak ever', value:data.best, unit:'days', tone:C.accent},
+      {label:'Overall compliance', value:data.overall, unit:'%', tone:C.accent},
+    ];
+    stats.forEach((s, i) => {
+      const x = M + i*(cardW + gap);
+      setFill(C.cream); doc.roundedRect(x, yCur, cardW, cardH, 10, 10, 'F');
+      setDraw(C.lineSoft); doc.setLineWidth(0.6); doc.roundedRect(x, yCur, cardW, cardH, 10, 10, 'S');
+      // Label
+      setText(C.muted); doc.setFont('helvetica','bold'); doc.setFontSize(8);
+      doc.text(s.label.toUpperCase(), x+16, yCur+20);
+      // Big number
+      setText(s.tone); doc.setFont('helvetica','bold'); doc.setFontSize(32);
+      doc.text(String(s.value), x+16, yCur+58);
+      // Unit
+      setText(C.muted); doc.setFont('helvetica','normal'); doc.setFontSize(10);
+      const numW = doc.getTextWidth(String(s.value));
+      doc.text(s.unit, x+16+numW+6, yCur+58);
     });
-    y+=cardH+25;
+    yCur += cardH + 28;
 
-    // Insights
-    doc.setTextColor(17,24,17);doc.setFont('helvetica','bold');doc.setFontSize(14);doc.text('Key insights', 40, y);y+=8;
-    doc.setDrawColor(224,232,224);doc.setLineWidth(0.5);doc.line(40, y, W-40, y);y+=14;
-    doc.setFont('helvetica','normal');doc.setFontSize(10.5);
-    data.insights.forEach(ins=>{
-      const c=ins.kind==='good'?[21,128,61]:ins.kind==='warn'?[146,64,14]:[17,24,17];
-      doc.setTextColor(...c);
-      const mark=ins.kind==='good'?'✓':ins.kind==='warn'?'!':'•';
-      doc.setFont('helvetica','bold');doc.text(mark, 40, y);doc.setFont('helvetica','normal');
-      const lines=doc.splitTextToSize(ins.text, W-100);
-      doc.text(lines, 56, y);
-      y+=lines.length*14+4;
-      if(y>H-100){doc.addPage();y=48;}
+    /* ---- Key insights ---- */
+    sectionHeading('Key insights', `${data.insights.length} signals from the last 90 days`);
+    data.insights.forEach(ins => {
+      const bg = ins.kind==='good' ? C.goodBg : ins.kind==='warn' ? C.warnBg : C.cream;
+      const fg = ins.kind==='good' ? C.good  : ins.kind==='warn' ? C.warn  : C.ink;
+      const mark = ins.kind==='good' ? '✓' : ins.kind==='warn' ? '!' : '•';
+
+      doc.setFont('helvetica','normal'); doc.setFontSize(10);
+      const lines = doc.splitTextToSize(ins.text, W - M*2 - 38);
+      const boxH = lines.length*14 + 14;
+      if(yCur + boxH > H - 80){ doc.addPage(); yCur = M; }
+
+      setFill(bg); doc.roundedRect(M, yCur, W - M*2, boxH, 6, 6, 'F');
+      // Left-side icon circle
+      setFill(fg); doc.circle(M+16, yCur+boxH/2, 7, 'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(10);
+      setText([255,255,255]); doc.text(mark, M+16, yCur+boxH/2+3.5, {align:'center'});
+      // Body text
+      setText(fg); doc.setFont('helvetica','normal'); doc.setFontSize(10);
+      doc.text(lines, M+32, yCur+16);
+      yCur += boxH + 8;
     });
-    y+=8;
+    yCur += 10;
 
-    // Daily trend chart
-    if(y>H-260){doc.addPage();y=48;}
-    const trendProps=doc.getImageProperties(charts.trendImg);
-    const trendW=W-80;const trendH=(trendProps.height*trendW)/trendProps.width;
-    doc.addImage(charts.trendImg, 'PNG', 40, y, trendW, trendH);
-    y+=trendH+16;
+    /* ---- Daily trend chart ---- */
+    sectionHeading('Daily adherence', 'Percentage completed each day, last 30 days');
+    addChartImage(charts.trendImg);
 
-    // Session & DOW charts side-by-side
-    if(y>H-240){doc.addPage();y=48;}
-    const halfW=(W-100)/2;
-    const sp=doc.getImageProperties(charts.sessImg);const sH=(sp.height*halfW)/sp.width;
-    doc.addImage(charts.sessImg, 'PNG', 40, y, halfW, sH);
-    const dp=doc.getImageProperties(charts.dowImg);const dH=(dp.height*halfW)/dp.width;
-    doc.addImage(charts.dowImg, 'PNG', 40+halfW+20, y, halfW, dH);
-    y+=Math.max(sH,dH)+16;
+    /* ---- Session & DOW side-by-side ---- */
+    sectionHeading('By session and weekday', 'Where your routine is strongest and where it slips');
+    const halfW = (W - M*2 - gap) / 2;
+    const sp = doc.getImageProperties(charts.sessImg);
+    const sH = (sp.height*halfW)/sp.width;
+    const dp = doc.getImageProperties(charts.dowImg);
+    const dH = (dp.height*halfW)/dp.width;
+    const rowH = Math.max(sH, dH);
+    if(yCur + rowH > H - 80){ doc.addPage(); yCur = M; }
+    setFill(C.cream);
+    doc.roundedRect(M-6, yCur-6, halfW+12, rowH+12, 6, 6, 'F');
+    doc.roundedRect(M+halfW+gap-6, yCur-6, halfW+12, rowH+12, 6, 6, 'F');
+    doc.addImage(charts.sessImg, 'PNG', M, yCur, halfW, sH);
+    doc.addImage(charts.dowImg, 'PNG', M+halfW+gap, yCur, halfW, dH);
+    yCur += rowH + 28;
 
-    // Item compliance table
-    doc.addPage();y=48;
-    doc.setFont('helvetica','bold');doc.setFontSize(14);doc.setTextColor(17,24,17);doc.text('Item compliance (last 90 days)', 40, y);y+=20;
+    /* ---- Item compliance table ---- */
+    doc.addPage(); yCur = M;
+    sectionHeading('Item compliance', 'Every item in your routine, last 90 days');
     doc.autoTable({
-      startY:y,
-      head:[['Item','Session','Days taken','Days possible','Compliance']],
+      startY: yCur,
+      head:[['Item','Session','Taken','Possible','Compliance']],
       body:data.itemStats.map(i=>[i.name, data.sessionLabels[i.session]||i.session, i.done, i.possible, i.pct+'%']),
-      theme:'grid',
-      headStyles:{fillColor:[15,26,20], textColor:[232,240,232], fontSize:10, fontStyle:'bold'},
-      bodyStyles:{fontSize:10},
-      columnStyles:{0:{cellWidth:'auto'},1:{cellWidth:80},2:{cellWidth:70,halign:'center'},3:{cellWidth:80,halign:'center'},4:{cellWidth:80,halign:'center', fontStyle:'bold'}},
+      theme:'plain',
+      headStyles:{
+        fillColor: C.accentDeep, textColor:[240,248,240],
+        fontSize:9, fontStyle:'bold', cellPadding:{top:8,bottom:8,left:10,right:10},
+      },
+      bodyStyles:{
+        fontSize:10, textColor:C.ink, cellPadding:{top:7,bottom:7,left:10,right:10},
+        lineColor:C.lineSoft, lineWidth:0.4,
+      },
+      alternateRowStyles:{fillColor:C.cream},
+      columnStyles:{
+        0:{cellWidth:'auto', fontStyle:'bold'},
+        1:{cellWidth:80, textColor:C.muted},
+        2:{cellWidth:60, halign:'center'},
+        3:{cellWidth:70, halign:'center'},
+        4:{cellWidth:80, halign:'center', fontStyle:'bold'},
+      },
       didParseCell: d=>{
         if(d.section==='body' && d.column.index===4){
           const pct=parseInt(d.cell.raw);
-          if(pct>=80){d.cell.styles.fillColor=[220,252,231];d.cell.styles.textColor=[21,128,61];}
-          else if(pct>=50){d.cell.styles.fillColor=[254,243,199];d.cell.styles.textColor=[146,64,14];}
-          else{d.cell.styles.fillColor=[255,228,230];d.cell.styles.textColor=[190,18,60];}
+          if(pct>=80){d.cell.styles.fillColor=C.goodBg;d.cell.styles.textColor=C.good;}
+          else if(pct>=50){d.cell.styles.fillColor=C.warnBg;d.cell.styles.textColor=C.warn;}
+          else{d.cell.styles.fillColor=C.badBg;d.cell.styles.textColor=C.bad;}
         }
       },
-      margin:{left:40, right:40}
+      margin:{left:M, right:M},
     });
-    y=doc.lastAutoTable.finalY+20;
+    yCur = doc.lastAutoTable.finalY + 28;
 
-    // Item chart
-    if(y>H-200){doc.addPage();y=48;}
-    const itemP=doc.getImageProperties(charts.itemImg);const itemW=W-80;const itemH=Math.min((itemP.height*itemW)/itemP.width, H-y-60);
-    doc.addImage(charts.itemImg, 'PNG', 40, y, itemW, itemH);
-    y+=itemH+20;
+    /* ---- Top items chart ---- */
+    sectionHeading('Top items by compliance', 'Best-performing 15 items in the last 90 days');
+    addChartImage(charts.itemImg, null, H - yCur - 90);
 
-    // Missed items
+    /* ---- Most-missed table ---- */
     if(data.missedCounts.length){
-      if(y>H-200){doc.addPage();y=48;}
-      doc.setFont('helvetica','bold');doc.setFontSize(14);doc.setTextColor(17,24,17);doc.text('Most frequently missed (last 30 days)', 40, y);y+=20;
+      if(yCur > H - 180){ doc.addPage(); yCur = M; }
+      sectionHeading('Most frequently missed', 'Last 30 days — worth a closer look');
       doc.autoTable({
-        startY:y,
-        head:[['Rank','Item','Missed','Of total days','Compliance']],
-        body:data.missedCounts.map((m,i)=>[i+1, m.name, m.missed, m.total, m.pct+'%']),
-        theme:'striped',
-        headStyles:{fillColor:[239,68,68], textColor:[255,255,255], fontSize:10},
-        bodyStyles:{fontSize:10},
-        margin:{left:40, right:40}
+        startY: yCur,
+        head:[['#','Item','Missed','Days','Compliance']],
+        body:data.missedCounts.map((m,i)=>[String(i+1), m.name, String(m.missed), String(m.total), m.pct+'%']),
+        theme:'plain',
+        headStyles:{
+          fillColor: C.bad, textColor:[255,255,255],
+          fontSize:9, fontStyle:'bold', cellPadding:{top:8,bottom:8,left:10,right:10},
+        },
+        bodyStyles:{
+          fontSize:10, textColor:C.ink, cellPadding:{top:7,bottom:7,left:10,right:10},
+          lineColor:C.lineSoft, lineWidth:0.4,
+        },
+        alternateRowStyles:{fillColor:C.cream},
+        columnStyles:{
+          0:{cellWidth:30, halign:'center', textColor:C.muted},
+          1:{cellWidth:'auto', fontStyle:'bold'},
+          2:{cellWidth:60, halign:'center', textColor:C.bad, fontStyle:'bold'},
+          3:{cellWidth:60, halign:'center'},
+          4:{cellWidth:80, halign:'center', fontStyle:'bold'},
+        },
+        margin:{left:M, right:M},
       });
-      y=doc.lastAutoTable.finalY+20;
+      yCur = doc.lastAutoTable.finalY + 28;
     }
 
-    // Notes
+    /* ---- Notes ---- */
     if(Object.keys(notes).length){
-      if(y>H-150){doc.addPage();y=48;}
-      doc.setFont('helvetica','bold');doc.setFontSize(14);doc.setTextColor(17,24,17);doc.text('Your notes', 40, y);y+=20;
-      const rows=Object.entries(notes).map(([id,n])=>{const item=data.allItems.find(x=>x.id===id);return[item?item.name:id, n];});
+      if(yCur > H - 150){ doc.addPage(); yCur = M; }
+      sectionHeading('Your notes', 'Observations, side effects, and reminders');
+      const rows=Object.entries(notes).map(([id,n])=>{
+        const item=data.allItems.find(x=>x.id===id);
+        return [item?item.name:id, n];
+      });
       doc.autoTable({
-        startY:y,
+        startY: yCur,
         head:[['Item','Note']],
         body:rows,
-        theme:'grid',
-        headStyles:{fillColor:[90,122,90], textColor:[255,255,255], fontSize:10},
-        bodyStyles:{fontSize:10, cellPadding:6},
-        columnStyles:{0:{cellWidth:130, fontStyle:'bold'},1:{cellWidth:'auto'}},
-        margin:{left:40, right:40}
+        theme:'plain',
+        headStyles:{
+          fillColor:C.accentDeep, textColor:[240,248,240],
+          fontSize:9, fontStyle:'bold', cellPadding:{top:8,bottom:8,left:10,right:10},
+        },
+        bodyStyles:{
+          fontSize:10, textColor:C.ink, cellPadding:{top:8,bottom:8,left:10,right:10},
+          lineColor:C.lineSoft, lineWidth:0.4,
+        },
+        alternateRowStyles:{fillColor:C.cream},
+        columnStyles:{
+          0:{cellWidth:140, fontStyle:'bold', textColor:C.accentDeep},
+          1:{cellWidth:'auto'},
+        },
+        margin:{left:M, right:M},
       });
     }
 
-    // Footer on every page
-    const pageCount=doc.internal.getNumberOfPages();
-    for(let p=1;p<=pageCount;p++){
+    /* ---- Footer on every page ---- */
+    const pageCount = doc.internal.getNumberOfPages();
+    for(let p=1; p<=pageCount; p++){
       doc.setPage(p);
-      doc.setFontSize(8);doc.setTextColor(156,163,175);
-      doc.text('Nilomi v4.2 — Personal Wellness Tracker', 40, H-20);
-      doc.text(`Page ${p} of ${pageCount}`, W-80, H-20);
+      // Thin separator above footer
+      setDraw(C.lineSoft); doc.setLineWidth(0.4);
+      doc.line(M, H-30, W-M, H-30);
+      doc.setFontSize(8); setText(C.faint); doc.setFont('helvetica','normal');
+      doc.text('Nilomi v4.2   ·   Personal Wellness Tracker', M, H-16);
+      doc.text(`${p} / ${pageCount}`, W-M, H-16, {align:'right'});
     }
 
     setExportStatus('Saving file…');
     doc.save(`Nilomi-Wellness-${todayStr}.pdf`);
-    setExportStatus('');toast('PDF report downloaded');
-  }catch(err){console.error(err);setExportStatus('Export failed: '+err.message);alert('PDF export failed. Check your internet connection — the export libraries load from CDN.\n\n'+err.message);}
-  finally{if(pBtn)pBtn.disabled=false;setTimeout(()=>setExportStatus(''),3000);}
+    setExportStatus(''); toast('PDF report downloaded');
+  }catch(err){
+    console.error(err);
+    setExportStatus('Export failed: '+err.message);
+    alert('PDF export failed. Check your internet connection — the export libraries load from CDN.\n\n'+err.message);
+  }finally{
+    if(pBtn)pBtn.disabled=false;
+    setTimeout(()=>setExportStatus(''),3000);
+  }
 }
 
 function dlFile(name,content,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;a.click();}
