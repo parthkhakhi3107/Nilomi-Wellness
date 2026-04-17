@@ -1,140 +1,123 @@
-// Nilomi v4 — Service Worker with auto-update
-// Strategy: network-first for HTML, cache-first for assets
-// On every open, checks for a new SW and forces reload if found
+/* Nilomi service worker — offline cache + push + scheduled reminders
+ * Push requires iOS 16.4+ with the app installed to Home Screen.
+ */
+const CACHE='nilomi-v4-3';
+const ASSETS=[
+  './',
+  './index.html',
+  './manifest.json',
+  './icon-192.png',
+  './icon-512.png',
+  './apple-touch-icon.png'
+];
 
-const CACHE = 'nilomi-v4';
-const ASSETS = ['/manifest.json', '/icon-192.svg', '/icon-512.svg'];
-// NOTE: index.html is intentionally NOT pre-cached
-// It is always fetched fresh from network, falling back to cache only if offline
-
-self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(ASSETS))
-  );
-  // Take over immediately without waiting for old SW to finish
-  self.skipWaiting();
+self.addEventListener('install', e=>{
+  // Resilient install: cache whatever we can, don't fail the whole worker if one asset 404s.
+  e.waitUntil((async()=>{
+    const cache=await caches.open(CACHE);
+    await Promise.all(ASSETS.map(async a=>{
+      try{ await cache.add(a); }catch(err){ /* ignore individual miss */ }
+    }));
+    self.skipWaiting();
+  })());
 });
-
-self.addEventListener('activate', e => {
-  e.waitUntil(
-    // Delete all old caches
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    ).then(() => clients.claim())
-  );
+self.addEventListener('activate', e=>{
+  e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));
 });
-
-self.addEventListener('fetch', e => {
-  const url = new URL(e.request.url);
-
-  // For index.html (and root /): always try network first, cache as fallback
-  if (url.pathname === '/' || url.pathname === '/index.html') {
-    e.respondWith(
-      fetch(e.request, { cache: 'no-cache' })
-        .then(res => {
-          // Cache the fresh copy
-          const clone = res.clone();
-          caches.open(CACHE).then(c => c.put(e.request, clone));
-          return res;
-        })
-        .catch(() => caches.match('/index.html'))
-    );
+self.addEventListener('fetch', e=>{
+  const req=e.request;
+  if(req.method!=='GET')return;
+  // Network-first for Google API calls so Drive sync isn't cached
+  if(/googleapis\.com|accounts\.google\.com/.test(req.url))return;
+  // Navigation fallback: if offline and page fails, serve index.html
+  if(req.mode==='navigate'){
+    e.respondWith(fetch(req).catch(()=>caches.match('./index.html')));
     return;
   }
-
-  // For everything else: cache first, network fallback
-  e.respondWith(
-    caches.match(e.request).then(r => r || fetch(e.request))
-  );
+  e.respondWith(caches.match(req).then(r=>r||fetch(req).then(resp=>{
+    if(resp&&resp.status===200&&resp.type==='basic'){const clone=resp.clone();caches.open(CACHE).then(c=>c.put(req,clone));}
+    return resp;
+  }).catch(()=>caches.match('./index.html'))));
 });
 
-// ── Notification scheduling ──
-let scheduledAlarms = [];
+/* ---------- Scheduled reminders (local, app-open-only) ---------- */
+let scheduled=[];
+function clearAll(){scheduled.forEach(id=>clearTimeout(id));scheduled=[];}
 
-function timeToNextMs(hh, mm) {
-  const now = new Date();
-  const fire = new Date();
-  fire.setHours(hh, mm, 0, 0);
-  if (fire <= now) fire.setDate(fire.getDate() + 1);
-  return fire - now;
+function parseTime(t){const [h,m]=(t||'0:0').split(':').map(Number);return {h:h||0,m:m||0};}
+function nextOccurrence(h,m){
+  const now=new Date();const target=new Date();target.setHours(h,m,0,0);
+  if(target<=now)target.setDate(target.getDate()+1);
+  return target.getTime()-now.getTime();
 }
 
-function parseTime(str) {
-  const [hh, mm] = str.split(':').map(Number);
-  return { hh, mm };
-}
-
-function buildAlarms(times) {
-  const t = times || { morning: '08:30', afternoon: '13:00', night: '22:00' };
-  return [
-    { key: 'morning',   ...parseTime(t.morning),   title: 'Morning routine ☀️', body: 'Time for meds after breakfast + Glutone, Flawlizo, Sunscreen, Glibest' },
-    { key: 'afternoon', ...parseTime(t.afternoon), title: 'Afternoon med 🌤',    body: 'T Faze — 1 tab after lunch' },
-    { key: 'night',     ...parseTime(t.night),     title: 'Bedtime routine 🌙',  body: 'Lactofy, Clingen, Glibest, Theara hair serum + tonight\'s serum' },
-    { key: 'midnight',  hh: 23, mm: 55,            title: 'Day summary 🌿',      body: 'Tap to see what you missed today', isSummary: true },
-  ];
-}
-
-function fireAlarm(alarm) {
-  self.registration.showNotification(alarm.title, {
-    body: alarm.body,
-    icon: '/icon-192.svg',
-    badge: '/icon-192.svg',
-    tag: 'nilomi-' + alarm.key,
-    renotify: true,
-    requireInteraction: false,
-    actions: alarm.isSummary
-      ? [{ action: 'open', title: 'View summary' }]
-      : [{ action: 'open', title: 'Mark done' }, { action: 'snooze', title: 'Snooze 15m' }]
-  });
-}
-
-function scheduleAll(times) {
-  scheduledAlarms.forEach(t => clearTimeout(t));
-  scheduledAlarms = [];
-  buildAlarms(times).forEach(alarm => {
-    const delay = timeToNextMs(alarm.hh, alarm.mm);
-    const t = setTimeout(() => {
-      fireAlarm(alarm);
-      setInterval(() => fireAlarm(alarm), 24 * 60 * 60 * 1000);
-    }, delay);
-    scheduledAlarms.push(t);
-  });
-}
-
-self.addEventListener('message', e => {
-  if (!e.data) return;
-  if (e.data.type === 'SCHEDULE' || e.data.type === 'HEARTBEAT') {
-    scheduleAll(e.data.times);
-  }
-  if (e.data.type === 'SEND_SUMMARY') {
-    const missed = e.data.missed || [];
-    const body = missed.length === 0
-      ? 'You completed everything today! Great job 🌿'
-      : `Missed today: ${missed.slice(0, 4).join(', ')}${missed.length > 4 ? ` + ${missed.length - 4} more` : ''}`;
-    self.registration.showNotification('Daily summary 🌿', {
-      body, icon: '/icon-192.svg', badge: '/icon-192.svg',
-      tag: 'nilomi-midnight', renotify: true,
+function scheduleSession(label, time, bodyMap){
+  const {h,m}=parseTime(time);
+  const delay=nextOccurrence(h,m);
+  const id=setTimeout(()=>{
+    self.registration.showNotification('Nilomi', {
+      body: bodyMap[label]||`Time for ${label} routine`,
+      icon:'./icon-192.png', badge:'./icon-192.png', tag:'nilomi-'+label,
+      vibrate:[140,60,140], requireInteraction:false,
+      data:{session:label, url:'./'}
     });
+    // Re-schedule for tomorrow
+    scheduleSession(label,time,bodyMap);
+  }, delay);
+  scheduled.push(id);
+}
+
+self.addEventListener('message', e=>{
+  const d=e.data||{};
+  if(d.type==='SCHEDULE'||d.type==='HEARTBEAT'){
+    clearAll();
+    const bodyMap={morning:'☀ Good morning — time for your morning routine',afternoon:'🌤 Afternoon check-in — time for your midday dose',night:'🌙 Bedtime — meds, serums, skincare'};
+    if(d.times){
+      if(d.times.morning)scheduleSession('morning', d.times.morning, bodyMap);
+      if(d.times.afternoon)scheduleSession('afternoon', d.times.afternoon, bodyMap);
+      if(d.times.night)scheduleSession('night', d.times.night, bodyMap);
+    }
+  } else if(d.type==='CANCEL_ALL'){
+    clearAll();
+  } else if(d.type==='SEND_SUMMARY'){
+    const missed=d.missed||[];
+    if(missed.length){
+      self.registration.showNotification('Nilomi — missed today', {
+        body: missed.length>4?`${missed.length} items missed including ${missed.slice(0,2).join(', ')}`:`Missed: ${missed.join(', ')}`,
+        icon:'./icon-192.png', badge:'./icon-192.png', tag:'nilomi-summary',
+        data:{url:'./'}
+      });
+    }
   }
 });
 
-self.addEventListener('notificationclick', e => {
+/* ---------- Real Web Push (iOS 16.4+ with VAPID) ---------- */
+self.addEventListener('push', e=>{
+  let payload={title:'Nilomi', body:'Routine reminder', url:'./'};
+  try{if(e.data){const j=e.data.json();payload={...payload,...j};}}catch(err){try{payload.body=e.data.text();}catch(_){}}
+  e.waitUntil(self.registration.showNotification(payload.title, {
+    body: payload.body,
+    icon: payload.icon||'./icon-192.png',
+    badge: payload.badge||'./icon-192.png',
+    tag: payload.tag||'nilomi-push',
+    vibrate:[160,80,160],
+    data:{url: payload.url||'./'}
+  }));
+});
+
+self.addEventListener('notificationclick', e=>{
   e.notification.close();
-  if (e.action === 'snooze') {
-    setTimeout(() => {
-      self.registration.showNotification(e.notification.title, {
-        body: e.notification.body, icon: '/icon-192.svg',
-        tag: e.notification.tag + '-snooze',
-      });
-    }, 15 * 60 * 1000);
-    return;
-  }
-  e.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(cs => {
-      const focused = cs.find(c => c.focused);
-      if (focused) return focused.focus();
-      if (cs.length) return cs[0].focus();
-      return clients.openWindow('/');
-    })
-  );
+  const url=(e.notification.data&&e.notification.data.url)||'./';
+  e.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(list=>{
+    for(const c of list){if('focus' in c){c.navigate(url).catch(()=>{});return c.focus();}}
+    if(clients.openWindow)return clients.openWindow(url);
+  }));
+});
+
+/* iOS resubscribe when subscription expires */
+self.addEventListener('pushsubscriptionchange', e=>{
+  // Best-effort: notify the open page so it can re-subscribe with the VAPID key
+  e.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(list=>{
+    list.forEach(c=>c.postMessage({type:'RESUBSCRIBE_NEEDED'}));
+  }));
 });
