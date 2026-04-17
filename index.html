@@ -418,6 +418,18 @@ body.light .tabbar{background:rgba(245,247,245,.93)}
     <button class="save-btn" onclick="saveProfile()">Save</button>
   </div>
 
+  <!-- Google Drive sync -->
+  <div class="settings-card">
+    <div class="settings-title">☁ Google Drive sync</div>
+    <div class="settings-sub">Keep your data in sync across devices. Uses <code style="font-size:10px">drive.file</code> scope — the app can only see the single file it creates.</div>
+    <div id="driveStatus" class="drive-status"><span class="drive-dot"></span> Checking…</div>
+    <div class="drive-row" style="margin-top:10px">
+      <button class="save-btn" id="driveConnectBtn" onclick="handleDriveConnectClick()">Connect Google Drive</button>
+      <button class="btn-ghost" id="driveSyncNowBtn" onclick="drivePush()" style="display:none">Sync now</button>
+      <button class="btn-ghost" id="driveDisconnectBtn" onclick="driveDisconnect()" style="display:none">Disconnect</button>
+    </div>
+  </div>
+
   <!-- Reminder times -->
   <div class="settings-card">
     <div class="settings-title">Reminder times</div>
@@ -2035,7 +2047,7 @@ function whenApisReady(cb){
 
 function renderDriveStatus(){
   const el=document.getElementById('driveStatus');if(!el)return;
-  const clientId=lsGet('drive.clientId','');
+  const clientId=(DRIVE_CLIENT_ID||lsGet('drive.clientId','')||'').trim();
   const connectBtn=document.getElementById('driveConnectBtn');
   const syncBtn=document.getElementById('driveSyncNowBtn');
   const disBtn=document.getElementById('driveDisconnectBtn');
@@ -2044,11 +2056,28 @@ function renderDriveStatus(){
   else if(driveState.connected){
     const last=driveState.lastSync?new Date(driveState.lastSync).toLocaleString('en-IN',{hour:'numeric',minute:'2-digit',day:'numeric',month:'short'}):'just now';
     el.className='drive-status connected';el.innerHTML=`<span class="drive-dot on"></span> Connected · last synced ${last}`;
-  } else if(clientId){el.className='drive-status';el.innerHTML='<span class="drive-dot"></span> Not connected — press Connect to authorise.';}
-  else{el.className='drive-status';el.innerHTML='<span class="drive-dot"></span> Enter your Client ID to enable sync.';}
-  connectBtn.style.display=driveState.connected?'none':'inline-block';
-  syncBtn.style.display=driveState.connected?'inline-block':'none';
-  disBtn.style.display=driveState.connected?'inline-block':'none';
+  } else if(clientId){el.className='drive-status';el.innerHTML='<span class="drive-dot"></span> Not connected — tap Connect to sign in with Google.';}
+  else{el.className='drive-status';el.innerHTML='<span class="drive-dot"></span> Not set up yet — tap Connect to enter your Google Client ID.';}
+  if(connectBtn){
+    connectBtn.style.display=driveState.connected?'none':'inline-block';
+    connectBtn.textContent = clientId ? 'Connect Google Drive' : 'Set up Drive sync';
+  }
+  if(syncBtn) syncBtn.style.display=driveState.connected?'inline-block':'none';
+  if(disBtn)  disBtn.style.display=driveState.connected?'inline-block':'none';
+}
+
+/* Connect-button handler: if no Client ID configured, prompt for one (same as
+   the #setup-drive hash). Otherwise trigger the OAuth popup. This must run
+   from a real click so browsers don't block the popup. */
+function handleDriveConnectClick(){
+  let clientId=(DRIVE_CLIENT_ID||lsGet('drive.clientId','')||'').trim();
+  if(!clientId){
+    const input=prompt('Paste your Google OAuth Client ID (ends in .apps.googleusercontent.com):','');
+    if(!input) return;
+    clientId=input.trim();
+    lsSet('drive.clientId', clientId);
+  }
+  driveConnect(clientId);
 }
 
 function driveInitTokenClient(clientId){
@@ -2261,13 +2290,19 @@ window.addEventListener('hashchange', maybeDriveHashSetup);
 (function tryAutoReconnectDrive(){
   const clientId=(DRIVE_CLIENT_ID||lsGet('drive.clientId','')||'').trim();
   if(DRIVE_CLIENT_ID)lsSet('drive.clientId', DRIVE_CLIENT_ID);
-  const wasConnected=lsGet('drive.connected', false) || !!DRIVE_CLIENT_ID;
   if(!clientId)return;
   whenApisReady(()=>{
     if(!driveInitTokenClient(clientId))return;
     const origCb=driveState.tokenClient.callback;
     driveState.tokenClient.callback=(resp)=>{
-      if(resp.error){driveState.connected=false;driveState.error='Reconnect — tap Connect again';renderDriveStatus();return;}
+      if(resp.error){
+        // Silent reconnect blocked — user needs to click Connect. Non-fatal.
+        driveState.connected=false;
+        driveState.error=null; // don't scare the user on first load
+        renderDriveStatus();
+        driveState.tokenClient.callback=origCb;
+        return;
+      }
       driveState.accessToken=resp.access_token;
       driveState.tokenExpiry=Date.now()+((resp.expires_in||3600)*1000)-30000;
       gapi.client.setToken({access_token:resp.access_token});
@@ -2275,11 +2310,15 @@ window.addEventListener('hashchange', maybeDriveHashSetup);
       driveFindFile().then(()=>drivePull());
       driveState.tokenClient.callback=origCb;
     };
-    try{driveState.tokenClient.requestAccessToken({prompt:''});}catch(e){}
+    try{driveState.tokenClient.requestAccessToken({prompt:''});}
+    catch(e){console.warn('Drive silent reconnect blocked',e);driveState.tokenClient.callback=origCb;renderDriveStatus();}
   });
 })();
 
+// Initial render of Today + Drive status
 render();
+renderDriveStatus();
+
 </script>
 </body>
 </html>
